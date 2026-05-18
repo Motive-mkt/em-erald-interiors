@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+
+  --color-cream: #FDFCF8;
+  --color-emerald: #065F46; /* Rich Emerald */
+  --color-emerald-vibrant: #10B981;
+  --color-terracotta: #C2410C;
+  --color-terracotta-soft: #EA580C;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cream font-sans text-emerald antialiased;
+  }
+}
+
+.markdown-body {
+  @apply font-serif text-lg leading-relaxed;
+}

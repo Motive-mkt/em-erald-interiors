@@ -1,0 +1,8 @@
+{
+  "name": "Em-erald Interiors",
+  "description": "Luxurious, visual-first interior design studio showcase featuring serene spaces, curated galleries, and professional design services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
