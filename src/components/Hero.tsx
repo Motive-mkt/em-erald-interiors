@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { Phone, Star, Clock } from 'lucide-react';
 import { Logo } from './Logo';
+import heroImg from '../assets/images/serene_bedroom_1779090868311.png';
 
 export function Hero() {
   const scrollToSection = (id: string) => {
@@ -138,7 +139,7 @@ export function Hero() {
 
           {/* Decorative Background for Image */}
           <div className="absolute -top-10 -right-10 w-[120%] h-[110%] -z-0 opacity-20 pointer-events-none">
-             <img src="/assets/images/serene_bedroom_1779090868311.png" className="w-full h-full object-cover rounded-[4rem]" alt="" />
+             <img src={heroImg} className="w-full h-full object-cover rounded-[4rem]" alt="" />
           </div>
         </div>
       </div>

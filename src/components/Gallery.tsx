@@ -1,32 +1,37 @@
 import { motion } from 'motion/react';
+import img1 from '../assets/images/serene_bedroom_1779090868311.png';
+import img2 from '../assets/images/sage_dining_room_1779090886447.png';
+import img3 from '../assets/images/modern_home_office_1779090902647.png';
+import img4 from '../assets/images/reading_nook_1779090922940.png';
+import img5 from '../assets/images/kitchen_styling_1779090940250.png';
 
 const ITEMS = [
   {
-    url: '/assets/images/serene_bedroom_1779090868311.png',
+    url: img1,
     tag: 'RESIDENTIAL',
     title: 'Linen Bedroom',
     span: 'md:col-span-1 md:row-span-2',
   },
   {
-    url: '/assets/images/sage_dining_room_1779090886447.png',
+    url: img2,
     tag: 'RESIDENTIAL',
     title: 'Sage Dining Room',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/assets/images/modern_home_office_1779090902647.png',
+    url: img3,
     tag: 'WORKSPACE',
     title: 'Warm Home Office',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/assets/images/reading_nook_1779090922940.png',
+    url: img4,
     tag: 'STYLING',
     title: 'Reading Nook',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/assets/images/kitchen_styling_1779090940250.png',
+    url: img5,
     tag: 'RESIDENTIAL',
     title: 'Open Kitchen',
     span: 'md:col-span-1 md:row-span-1',
