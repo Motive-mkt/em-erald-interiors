@@ -2,31 +2,31 @@ import { motion } from 'motion/react';
 
 const ITEMS = [
   {
-    url: '/src/assets/images/serene_bedroom_1779090868311.png',
+    url: '/assets/images/serene_bedroom_1779090868311.png',
     tag: 'RESIDENTIAL',
     title: 'Linen Bedroom',
     span: 'md:col-span-1 md:row-span-2',
   },
   {
-    url: '/src/assets/images/sage_dining_room_1779090886447.png',
+    url: '/assets/images/sage_dining_room_1779090886447.png',
     tag: 'RESIDENTIAL',
     title: 'Sage Dining Room',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/src/assets/images/modern_home_office_1779090902647.png',
+    url: '/assets/images/modern_home_office_1779090902647.png',
     tag: 'WORKSPACE',
     title: 'Warm Home Office',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/src/assets/images/reading_nook_1779090922940.png',
+    url: '/assets/images/reading_nook_1779090922940.png',
     tag: 'STYLING',
     title: 'Reading Nook',
     span: 'md:col-span-1 md:row-span-1',
   },
   {
-    url: '/src/assets/images/kitchen_styling_1779090940250.png',
+    url: '/assets/images/kitchen_styling_1779090940250.png',
     tag: 'RESIDENTIAL',
     title: 'Open Kitchen',
     span: 'md:col-span-1 md:row-span-1',

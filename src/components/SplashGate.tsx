@@ -5,19 +5,19 @@ import { Logo } from './Logo';
 
 const SLIDES = [
   {
-    url: '/src/assets/images/serene_bedroom_1779090868311.png',
+    url: '/assets/images/serene_bedroom_1779090868311.png',
     title: 'Linen Bedroom',
   },
   {
-    url: '/src/assets/images/sage_dining_room_1779090886447.png',
+    url: '/assets/images/sage_dining_room_1779090886447.png',
     title: 'Sage Dining Room',
   },
   {
-    url: '/src/assets/images/modern_home_office_1779090902647.png',
+    url: '/assets/images/modern_home_office_1779090902647.png',
     title: 'Modern Home Office',
   },
   {
-    url: '/src/assets/images/kitchen_styling_1779090940250.png',
+    url: '/assets/images/kitchen_styling_1779090940250.png',
     title: 'Open Kitchen',
   },
 ];
