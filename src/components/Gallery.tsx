@@ -63,29 +63,16 @@ export function Gallery() {
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
               whileHover={{ y: -10 }}
               className={`relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] group min-h-[300px] md:min-h-[350px] ${item.span}`}
               id={`gallery-item-${i}`}
             >
               <img
                 src={item.url}
-                alt={item.title}
+                alt=""
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 referrerPolicy="no-referrer"
               />
-              {/* Vignette Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
-              
-              {/* Minimal Typography */}
-              <div className="absolute bottom-6 left-8 text-white text-left">
-                <span className="text-[10px] tracking-[0.3em] font-medium block mb-1 opacity-70">
-                  {item.tag}
-                </span>
-                <p className="font-serif text-2xl">
-                  {item.title}
-                </p>
-              </div>
             </motion.div>
           ))}
         </div>

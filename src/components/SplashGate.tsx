@@ -56,23 +56,22 @@ export function SplashGate() {
           transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
           className="relative w-full h-full overflow-hidden rounded-[2.5rem] md:rounded-[4rem] shadow-2xl bg-white/50"
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.div
               key={index}
-              initial={{ opacity: 0, scale: 1.1 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              transition={{ duration: 1.8, ease: "easeInOut" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.2, ease: "easeInOut" }}
               className="absolute inset-0 w-full h-full"
             >
               <img
                 src={SLIDES[index].url}
-                alt={SLIDES[index].title}
+                alt=""
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                loading="eager"
               />
-              {/* Subtle dynamic overlay */}
-              <div className="absolute inset-0 bg-emerald/5 mix-blend-multiply" />
             </motion.div>
           </AnimatePresence>
           

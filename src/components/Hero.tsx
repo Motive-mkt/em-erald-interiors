@@ -43,9 +43,9 @@ export function Hero() {
               A home that <br />
               feels like <span className="text-terracotta italic">you.</span>
             </h1>
-            
+
             <p className="text-lg md:text-xl text-emerald/70 max-w-lg leading-relaxed mb-12">
-              Em–erald Interiors creates warm, considered spaces for homes and businesses — from full-service design to styling, painting and space planning. Thoughtful design, rooted in what matters.
+              EM-ERALD INTERIORS creates warm, considered spaces for homes and businesses — from full-service design to styling, painting and space planning.
             </p>
 
             <div className="flex flex-wrap items-center gap-8 mb-16">

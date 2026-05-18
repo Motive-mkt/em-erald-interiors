@@ -110,7 +110,7 @@ export function Footer() {
         <Logo size="sm" />
         
         <p className="text-emerald/40 text-[9px] md:text-[10px] font-bold tracking-widest text-center md:text-left">
-          © 2026 Em-erald Interiors. Crafted with care.
+          © 2026 EM-ERALD INTERIORS. CRAFTED WITH CARE.
         </p>
         
         <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-emerald/70 text-[9px] font-bold tracking-[0.2em] uppercase">

@@ -22,11 +22,11 @@ export function Logo({ className = '', variant = 'dark', size = 'md' }: LogoProp
   return (
     <div className={`flex flex-col items-center select-none text-center ${className}`}>
       <span className={`font-serif font-bold tracking-[0.1em] uppercase ${color} leading-none ${s.main}`}>
-        Em–erald
+        EM-ERALD
       </span>
       <div className={`w-full h-px opacity-20 my-1 md:my-2 ${isDark ? 'bg-emerald' : 'bg-cream'}`} />
       <span className={`tracking-[0.4em] uppercase opacity-70 font-medium ${color} ${s.sub}`}>
-        Interiors
+        INTERIORS
       </span>
     </div>
   );
