@@ -166,8 +166,12 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
     return userSnap.data() as UserProfile;
   }
 
-  // Determine role based on email context
-  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com";
+  // Check if this is the first user in the collection
+  const usersSnap = await getDocs(collection(db, "users"));
+  const isFirstUser = usersSnap.empty;
+
+  // Determine role based on email context or first user check
+  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com" || isFirstUser;
   
   const newProfile: UserProfile = {
     uid: user.uid,

@@ -95,7 +95,11 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
             userProfile = snap.data() as UserProfile;
           } else if (fUser.email) {
             // First time login auto boarding
-            const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com';
+            // Query current users to check if this is the first registration
+            const usersSnap = await getDocs(collection(db, 'users'));
+            const isFirstUser = usersSnap.empty;
+
+            const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com' || isFirstUser;
             const signupName = getPendingSignupName();
             const profile: UserProfile = {
               uid: fUser.uid,
