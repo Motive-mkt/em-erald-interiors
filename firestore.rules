@@ -83,7 +83,12 @@ service cloud.firestore {
              data.contactPhone is string && data.contactPhone.size() <= 32 &&
              data.contactInstagram is string && data.contactInstagram.size() <= 128 &&
              data.contactOpeningHours is string && data.contactOpeningHours.size() <= 256 &&
-             data.whatsappNumber is string && data.whatsappNumber.size() <= 32;
+             data.whatsappNumber is string && data.whatsappNumber.size() <= 32 &&
+             (data.get('logoUrl', null) == null || (data.logoUrl is string && data.logoUrl.size() <= 2048)) &&
+             (data.get('splashUrl1', null) == null || (data.splashUrl1 is string && data.splashUrl1.size() <= 2048)) &&
+             (data.get('splashUrl2', null) == null || (data.splashUrl2 is string && data.splashUrl2.size() <= 2048)) &&
+             (data.get('splashUrl3', null) == null || (data.splashUrl3 is string && data.splashUrl3.size() <= 2048)) &&
+             (data.get('splashUrl4', null) == null || (data.splashUrl4 is string && data.splashUrl4.size() <= 2048));
     }
 
     // --- COLLECTION RULES MATCHERS ---

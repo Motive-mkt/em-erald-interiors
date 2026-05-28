@@ -70,7 +70,12 @@
         "contactPhone": { "type": "string" },
         "contactInstagram": { "type": "string" },
         "contactOpeningHours": { "type": "string" },
-        "whatsappNumber": { "type": "string", "description": "Target WhatsApp phone number to forward leads to." }
+        "whatsappNumber": { "type": "string", "description": "Target WhatsApp phone number to forward leads to." },
+        "logoUrl": { "type": "string", "description": "The custom brand logo image URL" },
+        "splashUrl1": { "type": "string", "description": "Splash background slide 1 URL" },
+        "splashUrl2": { "type": "string", "description": "Splash background slide 2 URL" },
+        "splashUrl3": { "type": "string", "description": "Splash background slide 3 URL" },
+        "splashUrl4": { "type": "string", "description": "Splash background slide 4 URL" }
       },
       "required": ["heroTitleLine1", "heroTitleLine2", "heroTitleItalic", "heroParagraph", "contactPhone", "contactInstagram", "contactOpeningHours", "whatsappNumber"]
     }
