@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents an owner or employee user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The Firebase Auth user ID." },
+        "email": { "type": "string", "description": "User email address." },
+        "displayName": { "type": "string", "description": "User display name." },
+        "photoURL": { "type": "string", "description": "User profile avatar picture URL." },
+        "role": { "type": "string", "enum": ["owner", "employee"], "description": "The user's role: owner or employee." },
+        "approved": { "type": "boolean", "description": "Whether an employee is approved by the owner." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the user first signed in." }
+      },
+      "required": ["uid", "email", "role", "approved"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Represents a contact or leads message submitted via the website.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID." },
+        "name": { "type": "string", "description": "Sender full name." },
+        "phone": { "type": "string", "description": "Sender phone number." },
+        "email": { "type": "string", "description": "Sender email address." },
+        "service": { "type": "string", "description": "The selected interior design service." },
+        "message": { "type": "string", "description": "Detailed message query." },
+        "status": { "type": "string", "enum": ["unread", "contacted", "archived"], "description": "Processing state of the query." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of submission." }
+      },
+      "required": ["name", "phone", "email", "service", "message", "status", "createdAt"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Represents an editable service offered by the studio.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Service identifier." },
+        "title": { "type": "string", "description": "Name of the service." },
+        "desc": { "type": "string", "description": "Short details of the service." },
+        "icon": { "type": "string", "description": "Lucide icon name representation." },
+        "order": { "type": "number", "description": "Display sort order." }
+      },
+      "required": ["id", "title", "desc", "icon", "order"]
+    },
+    "GalleryItem": {
+      "title": "GalleryItem",
+      "description": "Represents an editable portfolio or gallery item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique gallery item identifier." },
+        "url": { "type": "string", "description": "URL of the custom image." },
+        "tag": { "type": "string", "description": "Workspace/Residential/Styling project categories." },
+        "title": { "type": "string", "description": "Name of the space or area." },
+        "span": { "type": "string", "description": "Vite layout span settings." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["id", "url", "tag", "title", "span"]
+    },
+    "SiteConfig": {
+      "title": "SiteConfig",
+      "description": "General customized texts and media configuration for the home screens.",
+      "type": "object",
+      "properties": {
+        "heroTitleLine1": { "type": "string" },
+        "heroTitleLine2": { "type": "string" },
+        "heroTitleItalic": { "type": "string" },
+        "heroParagraph": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "contactInstagram": { "type": "string" },
+        "contactOpeningHours": { "type": "string" },
+        "whatsappNumber": { "type": "string", "description": "Target WhatsApp phone number to forward leads to." }
+      },
+      "required": ["heroTitleLine1", "heroTitleLine2", "heroTitleItalic", "heroParagraph", "contactPhone", "contactInstagram", "contactOpeningHours", "whatsappNumber"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile database for authentication details and employee roles."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Leads tracking and message archive collection."
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Custom editable services."
+    },
+    "/gallery/{galleryId}": {
+      "schema": "GalleryItem",
+      "description": "Curated custom portfolios."
+    },
+    "/config/general": {
+      "schema": "SiteConfig",
+      "description": "Single record of site text and image labels."
+    }
+  }
+}

@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedOwner() {
+      return isSignedIn() && 
+             request.auth.token.email == "jessescaledyou@gmail.com";
+    }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    // Owner check: bootstrapped or registered role is 'owner'
+    function isOwner() {
+      return isSignedIn() && (
+        isBootstrappedOwner() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         getUserData(request.auth.uid).role == "owner")
+      );
+    }
+
+    // Approved User check: bootstrapped, registered owner, or approved employee
+    function isApprovedUser() {
+      return isSignedIn() && (
+        isBootstrappedOwner() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          getUserData(request.auth.uid).role == "owner" || 
+          getUserData(request.auth.uid).approved == true
+        ))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- ENTITY SCHEMA VALIDATIONS ---
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             (!data.keys().hasAll(['displayName']) || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!data.keys().hasAll(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 1024)) &&
+             data.role in ["owner", "employee"] &&
+             data.approved is bool;
+    }
+
+    function isValidMessage(data) {
+      return data.name is string && data.name.size() <= 128 &&
+             data.phone is string && data.phone.size() <= 32 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.service is string && data.service.size() <= 128 &&
+             data.message is string && data.message.size() <= 5000 &&
+             data.status in ["unread", "contacted", "archived"] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidService(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.desc is string && data.desc.size() <= 1024 &&
+             data.icon is string && data.icon.size() <= 64 &&
+             (data.order is int || data.order is float);
+    }
+
+    function isValidGalleryItem(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.url is string && data.url.size() <= 2048 &&
+             data.tag is string && data.tag.size() <= 64 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.span is string && data.span.size() <= 64;
+    }
+
+    function isValidSiteConfig(data) {
+      return data.heroTitleLine1 is string && data.heroTitleLine1.size() <= 256 &&
+             data.heroTitleLine2 is string && data.heroTitleLine2.size() <= 256 &&
+             data.heroTitleItalic is string && data.heroTitleItalic.size() <= 256 &&
+             data.heroParagraph is string && data.heroParagraph.size() <= 2048 &&
+             data.contactPhone is string && data.contactPhone.size() <= 32 &&
+             data.contactInstagram is string && data.contactInstagram.size() <= 128 &&
+             data.contactOpeningHours is string && data.contactOpeningHours.size() <= 256 &&
+             data.whatsappNumber is string && data.whatsappNumber.size() <= 32;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isApprovedUser());
+      allow list: if isApprovedUser();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && (
+        (isBootstrappedOwner() && incoming().role == "owner" && incoming().approved == true) ||
+        (!isBootstrappedOwner() && incoming().role == "employee" && incoming().approved == false)
+      );
+      allow update: if isOwner() && isValidUser(incoming());
+      allow delete: if isOwner() && userId != request.auth.uid; // Cannot delete self
+    }
+
+    // 2. Messages Collection
+    match /messages/{messageId} {
+      allow get, list: if isApprovedUser();
+      // Unauthenticated public can submit contact form inquiries
+      allow create: if isValidId(messageId) && isValidMessage(incoming());
+      // Updates allowed ONLY for status/attributes by approved employees
+      allow update: if isApprovedUser() && isValidMessage(incoming());
+      allow delete: if isOwner();
+    }
+
+    // 3. Services Collection
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create, update: if isApprovedUser() && isValidId(serviceId) && isValidService(incoming());
+      allow delete: if isApprovedUser();
+    }
+
+    // 4. Gallery Collection
+    match /gallery/{galleryId} {
+      allow read: if true;
+      allow create, update: if isApprovedUser() && isValidId(galleryId) && isValidGalleryItem(incoming());
+      allow delete: if isApprovedUser();
+    }
+
+    // 5. Site Configuration Collection
+    match /config/{configId} {
+      allow read: if true;
+      allow create, update: if isApprovedUser() && isValidId(configId) && isValidSiteConfig(incoming());
+      allow delete: if isOwner();
+    }
+
+  }
+}

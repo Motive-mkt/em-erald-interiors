@@ -1,33 +1,43 @@
+import React from 'react';
 import { motion } from 'motion/react';
 import { Star } from 'lucide-react';
 
 const TESTIMONIALS = [
   {
-    text: "Very professional — I trusted them with everything and my space turned out amazing.",
-    author: "Verified Client",
-    scope: "RESIDENTIAL PROJECT",
+    text: "I loved the professionalism! I left everything to them and now my space feels like heaven! I'd recommend Em-erald interiors anyday!",
+    author: "Liz Njerry",
+    scope: "Refurbishment",
+    time: "3 years ago",
+    positive: ["Professionalism"],
+    initials: "LN"
   },
   {
-    text: "They offer a wide variety of options, and the results fit perfectly.",
-    author: "Verified Client",
-    scope: "HOME RENOVATION",
+    text: "Have a variety of selections to choose from and almost all fit perfectly.. You would not go wrong with any selection",
+    author: "Elvis Njama",
+    scope: "Interior decorating",
+    time: "3 years ago",
+    positive: ["Quality", "Professionalism", "Value"],
+    initials: "EN"
   },
   {
-    text: "Excellent service delivery with strong professionalism, responsiveness, and quality.",
-    author: "Verified Client",
-    scope: "COMMERCIAL PROJECT",
-  },
+    text: "Very professional, and the service delivery was really good to my expectations.",
+    author: "Akware Elnah",
+    scope: "Interior architectural design, Interior decorating, Interior painting, Office space design",
+    time: "3 years ago",
+    positive: ["Responsiveness", "Punctuality", "Quality", "Professionalism", "Value"],
+    initials: "AE"
+  }
 ];
 
 export function Testimonials() {
   return (
     <section id="reviews" className="py-20 md:py-32 px-4 md:px-12 lg:px-24 bg-cream">
-      <div className="max-w-7xl mx-auto text-center">
+      <div className="max-w-7xl mx-auto">
         <motion.div
            initial={{ opacity: 0, y: 20 }}
            whileInView={{ opacity: 1, y: 0 }}
            viewport={{ once: true }}
-           className="mb-16 md:mb-20"
+           className="mb-16 md:mb-20 text-center"
         >
           <span className="text-emerald/40 font-medium tracking-[0.2em] text-[8px] md:text-[10px] uppercase block mb-6">
             Kind Words
@@ -42,13 +52,13 @@ export function Testimonials() {
                 <Star key={i} className="fill-current" size={18} />
               ))}
             </div>
-            <p className="text-emerald/60 text-xs sm:text-sm font-semibold tracking-wide">
-              4.9 <span className="opacity-50 font-normal">BASED ON 9 GOOGLE REVIEWS</span>
+            <p className="text-emerald/60 text-xs sm:text-sm font-semibold tracking-wide uppercase select-none">
+              4.9 <span className="opacity-50 font-normal">Based on Google Reviews</span>
             </p>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {TESTIMONIALS.map((t, i) => (
             <motion.div
               key={i}
@@ -56,22 +66,58 @@ export function Testimonials() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[2.5rem] text-left border border-emerald/5 flex flex-col justify-between"
+              className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[2.5rem] text-left border border-emerald/5 flex flex-col justify-between hover:shadow-xl hover:shadow-emerald/5 hover:-translate-y-1 transition-all duration-300"
               id={`testimonial-${i}`}
             >
               <div>
-                <div className="text-terracotta text-xl md:text-2xl font-serif mb-6 opacity-30 mt-[-5px]">
+                {/* Author Info header with Avatars */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-emerald text-cream flex items-center justify-center font-bold text-sm tracking-widest select-none">
+                    {t.initials}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-emerald text-sm sm:text-base leading-tight">
+                      {t.author}
+                    </h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex text-terracotta">
+                        {[...Array(5)].map((_, idx) => (
+                          <Star key={idx} className="fill-current" size={10} />
+                        ))}
+                      </div>
+                      <span className="text-[10px] text-emerald/40 font-medium">{t.time}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-terracotta text-xl md:text-2xl font-serif mb-4 opacity-30 mt-[-5px] select-none">
                   “
                 </div>
-                <p className="text-emerald/70 text-base md:text-lg leading-relaxed mb-10 md:mb-12">
+                <p className="text-emerald/70 text-sm md:text-base leading-relaxed mb-8">
                   {t.text}
                 </p>
               </div>
-              <div className="pt-8 border-t border-emerald/5">
-                <span className="font-bold text-emerald block mb-1 text-xs md:text-sm">{t.author}</span>
-                <span className="text-[10px] tracking-[0.2em] font-medium text-emerald/40 uppercase">
-                  {t.scope}
-                </span>
+
+              {/* Review Highlights & Tags */}
+              <div className="pt-6 border-t border-emerald/5 space-y-4">
+                {t.positive && t.positive.length > 0 && (
+                  <div>
+                    <span className="text-[8px] font-bold text-emerald/40 tracking-widest uppercase block mb-1.5 select-none">Positive Traits</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {t.positive.map((p) => (
+                        <span key={p} className="text-[9px] font-bold px-2 py-0.5 bg-terracotta/5 text-terracotta rounded-full">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <span className="text-[8px] font-bold text-emerald/40 tracking-widest uppercase block mb-1.5 select-none">Services Rendered</span>
+                  <span className="text-[11px] font-bold text-emerald/60 capitalize leading-tight block">
+                    {t.scope}
+                  </span>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -80,3 +126,4 @@ export function Testimonials() {
     </section>
   );
 }
+

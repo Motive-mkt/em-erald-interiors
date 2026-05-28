@@ -2,12 +2,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Logo } from './Logo';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import img1 from '../assets/images/serene_bedroom_1779090868311.png';
 import img2 from '../assets/images/sage_dining_room_1779090886447.png';
 import img3 from '../assets/images/modern_home_office_1779090902647.png';
 import img4 from '../assets/images/kitchen_styling_1779090940250.png';
 
-const SLIDES = [
+const DEFAULT_SLIDES = [
   {
     url: img1,
     title: 'Linen Bedroom',
@@ -27,14 +29,32 @@ const SLIDES = [
 ];
 
 export function SplashGate() {
+  const [slides, setSlides] = useState(DEFAULT_SLIDES);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data) {
+          setSlides([
+            { url: data.splashUrl1 || img1, title: 'Linen Bedroom' },
+            { url: data.splashUrl2 || img2, title: 'Sage Dining Room' },
+            { url: data.splashUrl3 || img3, title: 'Modern Home Office' },
+            { url: data.splashUrl4 || img4, title: 'Open Kitchen' },
+          ]);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      setIndex((prev) => (prev + 1) % SLIDES.length);
+      setIndex((prev) => (prev + 1) % slides.length);
     }, 4500);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
 
   const enterExperience = () => {
     document.getElementById('main-hero')?.scrollIntoView({ behavior: 'smooth' });
@@ -70,7 +90,7 @@ export function SplashGate() {
               className="absolute inset-0 w-full h-full"
             >
               <img
-                src={SLIDES[index].url}
+                src={slides[index]?.url || img1}
                 alt=""
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"

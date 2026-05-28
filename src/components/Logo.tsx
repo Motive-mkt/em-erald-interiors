@@ -1,4 +1,8 @@
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import logoImg from '../assets/images/business_logo_png_1779092570942.png';
 
 interface LogoProps {
   className?: string;
@@ -6,28 +10,46 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export function Logo({ className = '', variant = 'dark', size = 'md' }: LogoProps) {
-  const isDark = variant === 'dark';
-  const color = isDark ? 'text-emerald' : 'text-cream';
-  
+export function Logo({ className = '', size = 'md' }: LogoProps) {
+  const [logoUrl, setLogoUrl] = useState<string>('');
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "general"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && data.logoUrl) {
+          setLogoUrl(data.logoUrl);
+        } else {
+          setLogoUrl('');
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const sizes = {
-    sm: { main: 'text-sm', sub: 'text-[7px]' },
-    md: { main: 'text-xl', sub: 'text-[9px]' },
-    lg: { main: 'text-4xl', sub: 'text-xs' },
-    xl: { main: 'text-6xl', sub: 'text-base' }
+    sm: 'h-16 md:h-18',
+    md: 'h-24 md:h-28',
+    lg: 'h-36 md:h-44',
+    xl: 'h-48 md:h-56'
   };
 
-  const s = sizes[size];
+  const currentSizeClass = sizes[size];
+  const urlToRender = logoUrl || logoImg;
 
   return (
-    <div className={`flex flex-col items-center select-none text-center ${className}`}>
-      <span className={`font-serif font-bold tracking-[0.1em] uppercase ${color} leading-none ${s.main}`}>
-        EM-ERALD
-      </span>
-      <div className={`w-full h-px opacity-20 my-1 md:my-2 ${isDark ? 'bg-emerald' : 'bg-cream'}`} />
-      <span className={`tracking-[0.4em] uppercase opacity-70 font-medium ${color} ${s.sub}`}>
-        INTERIORS
-      </span>
+    <div className={`flex flex-col items-center select-none ${className}`}>
+      <motion.img 
+        src={urlToRender} 
+        alt="Em-erald Interiors Logo"
+        className={`${currentSizeClass} object-contain mix-blend-multiply`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        key={urlToRender}
+        referrerPolicy="no-referrer"
+      />
     </div>
   );
 }
+
