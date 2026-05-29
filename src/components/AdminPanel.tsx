@@ -17,8 +17,15 @@ import {
   ChevronRight,
   ShieldCheck,
   Building,
-  Hourglass
+  Hourglass,
+  ChevronLeft,
+  UploadCloud,
+  Link2
 } from 'lucide-react';
+import img1 from '../assets/images/serene_bedroom_1779090868311.png';
+import img2 from '../assets/images/sage_dining_room_1779090886447.png';
+import img3 from '../assets/images/modern_home_office_1779090902647.png';
+import img4 from '../assets/images/kitchen_styling_1779090940250.png';
 import { 
   auth, 
   db, 
@@ -26,6 +33,7 @@ import {
   signUpUserWithEmailAndPassword,
   signInUserWithEmailAndPassword,
   getPendingSignupName,
+  ensureAndFetchUserProfile,
   UserProfile, 
   MessageDocument, 
   ServiceDocument, 
@@ -33,6 +41,7 @@ import {
   SiteConfigDocument,
   seedInitialData
 } from '../lib/firebase';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   collection, 
   getDocs, 
@@ -56,6 +65,8 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, onUpdateGallery }: AdminPanelProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [activeTab, setActiveTab] = useState<'messages' | 'config' | 'services' | 'gallery' | 'users'>('messages');
@@ -75,6 +86,12 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const [savingConfig, setSavingConfig] = useState(false);
   const [errorText, setErrorText] = useState('');
 
+  // Dynamic Image Upload & Interactive States
+  const [uploaderError, setUploaderError] = useState('');
+  const [filePreview, setFilePreview] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const [logoDragActive, setLogoDragActive] = useState(false);
+
   // Email and Password Auth States
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [emailInput, setEmailInput] = useState('');
@@ -88,70 +105,8 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     const unsub = auth.onAuthStateChanged(async (fUser) => {
       if (fUser) {
         try {
-          const uRef = doc(db, 'users', fUser.uid);
-          const snap = await getDoc(uRef);
-          let userProfile: UserProfile | null = null;
-          
-          if (snap.exists()) {
-            userProfile = snap.data() as UserProfile;
-            
-            // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no active owners
-            const isOwnerEmail = fUser.email?.toLowerCase() === 'jessescaledyou@gmail.com';
-            if (isOwnerEmail && (userProfile.role !== 'owner' || !userProfile.approved)) {
-              userProfile.role = 'owner';
-              userProfile.approved = true;
-              await setDoc(uRef, userProfile);
-            } else if (!userProfile.approved) {
-              try {
-                const usersSnap = await getDocs(collection(db, 'users'));
-                const hasOwner = usersSnap.docs.some(docRef => {
-                  const u = docRef.data() as UserProfile;
-                  return u.role === 'owner' && u.approved;
-                });
-                if (!hasOwner || usersSnap.size <= 1) {
-                  userProfile.role = 'owner';
-                  userProfile.approved = true;
-                  await setDoc(uRef, userProfile);
-                }
-              } catch (checkErr) {
-                console.warn("Soft check for existing owner failed:", checkErr);
-              }
-            }
-          } else if (fUser.email) {
-            // First time login auto boarding
-            let isFirstUser = false;
-            let hasOwner = false;
-            try {
-              // Query current users to check if this is the first registration
-              const usersSnap = await getDocs(collection(db, 'users'));
-              isFirstUser = usersSnap.empty;
-              hasOwner = usersSnap.docs.some(docRef => {
-                const u = docRef.data() as UserProfile;
-                return u.role === 'owner' && u.approved;
-              });
-            } catch (queryErr) {
-              console.warn("Soft check for existing users failed during signup. Proceeding with defaults.", queryErr);
-            }
-
-            const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com' || isFirstUser || !hasOwner;
-            const signupName = getPendingSignupName();
-            const profile: UserProfile = {
-              uid: fUser.uid,
-              email: fUser.email.toLowerCase(),
-              displayName: signupName || fUser.displayName || fUser.email.split('@')[0],
-              photoURL: fUser.photoURL || '',
-              role: isOwnerEmail ? 'owner' : 'employee',
-              approved: isOwnerEmail ? true : false,
-            };
-            try {
-              await setDoc(uRef, profile);
-            } catch (writeErr) {
-              console.error("Failed to write initial user profile document:", writeErr);
-            }
-            userProfile = profile;
-          }
-
-          setCurrentUser(userProfile);
+          const profile = await ensureAndFetchUserProfile(fUser, getPendingSignupName());
+          setCurrentUser(profile);
         } catch (err: any) {
           console.error("Auth sync error:", err);
           setErrorText(err.message || "Error synchronizing database secure session.");
@@ -164,6 +119,26 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
 
     return () => unsub();
   }, []);
+
+  // Role-Based Redirect and Route Protection logic
+  useEffect(() => {
+    if (loadingUser) return;
+
+    if (currentUser) {
+      const isOwnerOrAdmin = currentUser.role === 'owner' || currentUser.role === 'admin';
+      if (isOwnerOrAdmin) {
+        // Redirection logic for authenticated owners or admins
+        if (location.pathname === '/' || location.pathname === '/profile' || location.pathname === '/login') {
+          navigate('/admin', { replace: true });
+        }
+      } else {
+        // Redirection logic for standard core users
+        if (location.pathname === '/admin' || location.pathname === '/login') {
+          navigate('/profile', { replace: true });
+        }
+      }
+    }
+  }, [currentUser, loadingUser, location.pathname, navigate]);
 
   // Auto-direct to the first dashboard tab after sign-up or sign-in
   useEffect(() => {
@@ -209,6 +184,12 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
       const data: GalleryDocument[] = [];
       snap.forEach((d) => {
         data.push(d.data() as GalleryDocument);
+      });
+      // Order items based on sequential index sorting
+      data.sort((a, b) => {
+        const orderA = a.order !== undefined ? a.order : 999;
+        const orderB = b.order !== undefined ? b.order : 999;
+        return orderA - orderB;
       });
       setGallery(data);
     });
@@ -397,9 +378,19 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     e.preventDefault();
     if (!newGalleryItem.url) return;
     const gId = 'img-' + Math.random().toString(36).substring(2, 9);
+    // Auto-calculate order to append to the end of the collection sequence
+    const maxOrder = gallery.length > 0 
+      ? Math.max(...gallery.map(g => g.order !== undefined ? g.order : 0)) 
+      : 0;
+      
     try {
-      await setDoc(doc(db, 'gallery', gId), { id: gId, ...newGalleryItem });
+      await setDoc(doc(db, 'gallery', gId), { 
+        id: gId, 
+        ...newGalleryItem,
+        order: maxOrder + 1
+      });
       setNewGalleryItem({ url: '', tag: 'RESIDENTIAL', title: '', span: 'md:col-span-1 md:row-span-1' });
+      setFilePreview('');
       if (onUpdateGallery) onUpdateGallery();
     } catch (err) {
       console.error(err);
@@ -414,6 +405,117 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
       if (onUpdateGallery) onUpdateGallery();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Swapping/Reordering of Gallery Elements in real-time
+  const handleMoveGalleryItem = async (tileId: string, direction: 'left' | 'right') => {
+    const currentIndex = gallery.findIndex(g => g.id === tileId);
+    if (currentIndex === -1) return;
+    
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= gallery.length) return; // Out of bounds
+
+    const currentItem = gallery[currentIndex];
+    const targetItem = gallery[targetIndex];
+
+    const currentOrder = currentItem.order !== undefined ? currentItem.order : currentIndex;
+    const targetOrder = targetItem.order !== undefined ? targetItem.order : targetIndex;
+
+    try {
+      await updateDoc(doc(db, 'gallery', currentItem.id), { order: targetOrder });
+      await updateDoc(doc(db, 'gallery', targetItem.id), { order: currentOrder });
+    } catch (err) {
+      console.error("Swapping gallery hierarchy failed:", err);
+    }
+  };
+
+  // Base64 File encoding convertor
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!file.type.match('image.*')) {
+        return reject(new Error("Image format mismatch. Please upload JPEG, PNG, or WebP."));
+      }
+      if (file.size > 1.5 * 1024 * 1024) {
+        return reject(new Error("File too large. To prevent bandwidth spikes, upload image under 1.5MB."));
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) resolve(e.target.result as string);
+        else reject(new Error("FileReader outcome is empty."));
+      };
+      reader.onerror = () => reject(new Error("FileReader generic error."));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Unified File upload triggers
+  const handleFileUploadChange = async (
+    e: React.ChangeEvent<HTMLInputElement>, 
+    target: 'gallery' | 'logo' | 'splash1' | 'splash2' | 'splash3' | 'splash4'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploaderError('');
+      const base64 = await convertFileToBase64(file);
+      
+      if (target === 'gallery') {
+        setFilePreview(base64);
+        setNewGalleryItem(prev => ({ ...prev, url: base64 }));
+      } else if (target === 'logo') {
+        if (configForm) {
+          setConfigForm(prev => prev ? ({ ...prev, logoUrl: base64 }) : null);
+        }
+      } else if (target.startsWith('splash')) {
+        const indexStr = target.replace('splash', '');
+        if (configForm) {
+          const key = `splashUrl${indexStr}` as keyof SiteConfigDocument;
+          setConfigForm(prev => prev ? ({ ...prev, [key]: base64 }) : null);
+        }
+      }
+    } catch (err: any) {
+      setUploaderError(err.message || 'Error processing selected image file.');
+    }
+  };
+
+  // Drag overlay triggers
+  const handleDrag = (e: React.DragEvent, stateSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      stateSetter(true);
+    } else if (e.type === "dragleave") {
+      stateSetter(false);
+    }
+  };
+
+  // Drop event triggers
+  const handleDrop = async (
+    e: React.DragEvent, 
+    target: 'gallery' | 'logo', 
+    stateSetter: React.Dispatch<React.SetStateAction<boolean>>
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stateSetter(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      try {
+        setUploaderError('');
+        const base64 = await convertFileToBase64(file);
+        if (target === 'gallery') {
+          setFilePreview(base64);
+          setNewGalleryItem(prev => ({ ...prev, url: base64 }));
+        } else if (target === 'logo') {
+          if (configForm) {
+            setConfigForm(prev => prev ? ({ ...prev, logoUrl: base64 }) : null);
+          }
+        }
+      } catch (err: any) {
+        setUploaderError(err.message || 'Error parsing dropped image.');
+      }
     }
   };
 
@@ -870,64 +972,250 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                             />
                           </div>
 
-                          <div className="md:col-span-2">
-                            <label className="text-xs font-bold text-emerald tracking-wide uppercase block mb-2">Business Logo Image URL (HTTPS link or empty for primary monogram logo)</label>
-                            <input 
-                              type="text"
-                              value={configForm.logoUrl || ''}
-                              onChange={(e) => setConfigForm({...configForm, logoUrl: e.target.value})}
-                              placeholder="e.g., https://example.com/logo.png"
-                              className="w-full bg-cream rounded-xl px-4 py-3.5 outline-none focus:ring-1 focus:ring-terracotta text-sm text-emerald font-semibold"
-                            />
-                            <p className="text-[10px] text-emerald/40 mt-1 italic">
-                              To customize the business logo, host your image online and paste the URL here. To revert to the primary emerald monogram logo, leave this field empty.
-                            </p>
+                          {/* Logo Settings Card Component */}
+                          <div className="md:col-span-2 bg-cream/30 p-6 rounded-2xl border border-emerald/5 space-y-4">
+                            <label className="text-xs font-bold text-emerald tracking-wide uppercase block">Dynamic Logo Customization</label>
+                            <p className="text-[10px] text-emerald/50">Upload a crisp PNG or vector SVG with transparency. You can also paste an external secure link below. Sits perfectly over any header background.</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                              {/* Logo Drag/Drop Area */}
+                              <div 
+                                onDragEnter={(e) => handleDrag(e, setLogoDragActive)}
+                                onDragOver={(e) => handleDrag(e, setLogoDragActive)}
+                                onDragLeave={(e) => handleDrag(e, setLogoDragActive)}
+                                onDrop={(e) => handleDrop(e, 'logo', setLogoDragActive)}
+                                className={`relative border-2 border-dashed rounded-2xl p-6 text-center transition-all ${logoDragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 bg-white hover:border-emerald/30'}`}
+                              >
+                                {configForm.logoUrl ? (
+                                  <div className="flex flex-col items-center gap-3">
+                                    <div className="w-full h-16 rounded-xl bg-[linear-gradient(45deg,#ccc_25%,transparent_25%),linear-gradient(-45deg,#ccc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ccc_75%),linear-gradient(-45deg,transparent_75%,#ccc_75%)] bg-[size:10px_10px] bg-[position:0_0,0_5px,5px_-5px,-5px_0] bg-white flex items-center justify-center p-2 border border-emerald/5 overflow-hidden">
+                                      <img src={configForm.logoUrl} alt="Logo preview" className="h-full object-contain" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <button 
+                                      type="button"
+                                      onClick={() => setConfigForm({...configForm, logoUrl: ''})}
+                                      className="text-[9px] font-bold text-red-500 uppercase hover:underline cursor-pointer"
+                                    >
+                                      Remove Logo (Text Fallback)
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-2">
+                                    <ShieldCheck size={20} className="text-emerald/40" />
+                                    <p className="text-[10px] font-bold text-emerald">Drag & drop logo file here</p>
+                                    <p className="text-[9px] text-emerald/50">Supports SVG or PNG</p>
+                                    <label htmlFor="logo-file-picker" className="bg-emerald text-cream px-3 py-1.5 rounded-lg text-[9px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-1">
+                                      Browse File
+                                    </label>
+                                    <input 
+                                      type="file" 
+                                      accept="image/png, image/svg+xml, image/jpeg, image/webp" 
+                                      id="logo-file-picker" 
+                                      className="hidden" 
+                                      onChange={(e) => handleFileUploadChange(e, 'logo')} 
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* URL Link Fallback Area */}
+                              <div className="space-y-3">
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Custom Logo Image URL</span>
+                                <input 
+                                  type="text"
+                                  value={configForm.logoUrl || ''}
+                                  onChange={(e) => setConfigForm({...configForm, logoUrl: e.target.value})}
+                                  placeholder="Or paste direct secure logo link..."
+                                  className="w-full bg-white rounded-xl px-4 py-3 outline-none border border-emerald/10 text-xs text-emerald font-semibold"
+                                />
+                                <div className="p-3 bg-white/50 rounded-xl border border-emerald/5">
+                                  <p className="text-[9px] text-emerald/50 leading-relaxed font-semibold">
+                                    💡 <strong className="text-emerald">Live Updates:</strong> Saving updates your branding immediately. Fallback typographic monogram logo activates if this field is empty.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="md:col-span-2 pt-4 border-t border-emerald/5">
                             <h3 className="text-sm font-bold text-emerald tracking-wider uppercase mb-3">Splash Gate Slideshow</h3>
-                            <p className="text-[10px] text-emerald/50 mb-4 font-semibold">Change the four sliding images on display in the welcoming cinematic intro page. Leave any URL empty to reset to its pre-loaded default studio image.</p>
+                            <p className="text-[10px] text-emerald/50 mb-4 font-semibold">Change the four sliding images on display in the welcoming cinematic intro page. Drag & drop or select local files, or insert URLs. Resets back to its beautifully pre-loaded default studio image when cleared.</p>
                             
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Splash Carousel Image 1</label>
-                                <input 
-                                  type="text"
-                                  value={configForm.splashUrl1 || ''}
-                                  onChange={(e) => setConfigForm({...configForm, splashUrl1: e.target.value})}
-                                  placeholder="Paste secure image link (https://...)"
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                              {/* Slide 1 */}
+                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 1 — Linen Bedroom</span>
+                                <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
+                                  <img 
+                                    src={configForm.splashUrl1 || img1} 
+                                    alt="Splash 1" 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={(e) => handleFileUploadChange(e, 'splash1')}
+                                    className="hidden" 
+                                    id="splash-file-1"
+                                  />
+                                  <div className="flex gap-2">
+                                    <label 
+                                      htmlFor="splash-file-1" 
+                                      className="flex-1 bg-emerald text-cream py-2 rounded-lg text-[10px] uppercase font-bold text-center cursor-pointer hover:bg-emerald-soft transition-colors"
+                                    >
+                                      Upload Image
+                                    </label>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setConfigForm({...configForm, splashUrl1: ""})}
+                                      className="bg-red-500/15 text-red-500 hover:bg-red-500/25 text-[10px] uppercase font-bold py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Reset
+                                    </button>
+                                  </div>
+                                  <input 
+                                    type="text"
+                                    value={configForm.splashUrl1 || ''}
+                                    onChange={(e) => setConfigForm({...configForm, splashUrl1: e.target.value})}
+                                    placeholder="Or paste secure image link..."
+                                    className="w-full bg-white rounded-lg px-2.5 py-1.5 outline-none text-[10px] text-emerald font-semibold border border-emerald/5"
+                                  />
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Splash Carousel Image 2</label>
-                                <input 
-                                  type="text"
-                                  value={configForm.splashUrl2 || ''}
-                                  onChange={(e) => setConfigForm({...configForm, splashUrl2: e.target.value})}
-                                  placeholder="Paste secure image link (https://...)"
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                                />
+
+                              {/* Slide 2 */}
+                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 2 — Sage Dining Room</span>
+                                <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
+                                  <img 
+                                    src={configForm.splashUrl2 || img2} 
+                                    alt="Splash 2" 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={(e) => handleFileUploadChange(e, 'splash2')}
+                                    className="hidden" 
+                                    id="splash-file-2"
+                                  />
+                                  <div className="flex gap-2">
+                                    <label 
+                                      htmlFor="splash-file-2" 
+                                      className="flex-1 bg-emerald text-cream py-2 rounded-lg text-[10px] uppercase font-bold text-center cursor-pointer hover:bg-emerald-soft transition-colors"
+                                    >
+                                      Upload Image
+                                    </label>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setConfigForm({...configForm, splashUrl2: ""})}
+                                      className="bg-red-500/15 text-red-500 hover:bg-red-500/25 text-[10px] uppercase font-bold py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Reset
+                                    </button>
+                                  </div>
+                                  <input 
+                                    type="text"
+                                    value={configForm.splashUrl2 || ''}
+                                    onChange={(e) => setConfigForm({...configForm, splashUrl2: e.target.value})}
+                                    placeholder="Or paste secure image link..."
+                                    className="w-full bg-white rounded-lg px-2.5 py-1.5 outline-none text-[10px] text-emerald font-semibold border border-emerald/5"
+                                  />
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Splash Carousel Image 3</label>
-                                <input 
-                                  type="text"
-                                  value={configForm.splashUrl3 || ''}
-                                  onChange={(e) => setConfigForm({...configForm, splashUrl3: e.target.value})}
-                                  placeholder="Paste secure image link (https://...)"
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                                />
+
+                              {/* Slide 3 */}
+                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 3 — Modern Home Office</span>
+                                <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
+                                  <img 
+                                    src={configForm.splashUrl3 || img3} 
+                                    alt="Splash 3" 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={(e) => handleFileUploadChange(e, 'splash3')}
+                                    className="hidden" 
+                                    id="splash-file-3"
+                                  />
+                                  <div className="flex gap-2">
+                                    <label 
+                                      htmlFor="splash-file-3" 
+                                      className="flex-1 bg-emerald text-cream py-2 rounded-lg text-[10px] uppercase font-bold text-center cursor-pointer hover:bg-emerald-soft transition-colors"
+                                    >
+                                      Upload Image
+                                    </label>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setConfigForm({...configForm, splashUrl3: ""})}
+                                      className="bg-red-500/15 text-red-500 hover:bg-red-500/25 text-[10px] uppercase font-bold py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Reset
+                                    </button>
+                                  </div>
+                                  <input 
+                                    type="text"
+                                    value={configForm.splashUrl3 || ''}
+                                    onChange={(e) => setConfigForm({...configForm, splashUrl3: e.target.value})}
+                                    placeholder="Or paste secure image link..."
+                                    className="w-full bg-white rounded-lg px-2.5 py-1.5 outline-none text-[10px] text-emerald font-semibold border border-emerald/5"
+                                  />
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Splash Carousel Image 4</label>
-                                <input 
-                                  type="text"
-                                  value={configForm.splashUrl4 || ''}
-                                  onChange={(e) => setConfigForm({...configForm, splashUrl4: e.target.value})}
-                                  placeholder="Paste secure image link (https://...)"
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                                />
+
+                              {/* Slide 4 */}
+                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 4 — Open Kitchen</span>
+                                <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
+                                  <img 
+                                    src={configForm.splashUrl4 || img4} 
+                                    alt="Splash 4" 
+                                    className="w-full h-full object-cover" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={(e) => handleFileUploadChange(e, 'splash4')}
+                                    className="hidden" 
+                                    id="splash-file-4"
+                                  />
+                                  <div className="flex gap-2">
+                                    <label 
+                                      htmlFor="splash-file-4" 
+                                      className="flex-1 bg-emerald text-cream py-2 rounded-lg text-[10px] uppercase font-bold text-center cursor-pointer hover:bg-emerald-soft transition-colors"
+                                    >
+                                      Upload Image
+                                    </label>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setConfigForm({...configForm, splashUrl4: ""})}
+                                      className="bg-red-500/15 text-red-500 hover:bg-red-500/25 text-[10px] uppercase font-bold py-2 px-3 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Reset
+                                    </button>
+                                  </div>
+                                  <input 
+                                    type="text"
+                                    value={configForm.splashUrl4 || ''}
+                                    onChange={(e) => setConfigForm({...configForm, splashUrl4: e.target.value})}
+                                    placeholder="Or paste secure image link..."
+                                    className="w-full bg-white rounded-lg px-2.5 py-1.5 outline-none text-[10px] text-emerald font-semibold border border-emerald/5"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1031,94 +1319,195 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                       </div>
 
                       {/* ADD NEW GALLERY IMAGE BUBBLE */}
-                      <form onSubmit={handleCreateGalleryItem} className="bg-white p-8 rounded-3xl border border-emerald/5 shadow-xl">
-                        <h3 className="text-sm font-bold text-emerald tracking-widest uppercase mb-4">Add Image to Gallery</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                          <div className="md:col-span-2">
-                            <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Image URL Links (HTTPS)</span>
-                            <input 
-                              type="text"
-                              value={newGalleryItem.url}
-                              onChange={(e) => setNewGalleryItem({ ...newGalleryItem, url: e.target.value })}
-                              placeholder="Paste high-res secure photo link..."
-                              className="w-full bg-cream rounded-xl px-4 py-3.5 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                            />
+                      <div className="bg-white p-8 rounded-3xl border border-emerald/5 shadow-xl space-y-6">
+                        <div className="border-b border-emerald/5 pb-4">
+                          <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Add Image to Gallery</h3>
+                          <p className="text-[10px] text-emerald/50 mt-1">Select or drop an image file (JPEG, PNG, WebP) to upload directly, or paste a secure link below.</p>
+                        </div>
+
+                        {uploaderError && (
+                          <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl font-semibold">
+                            ⚠️ {uploaderError}
                           </div>
-                          <div>
-                            <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Image tag category</span>
-                            <select 
-                              value={newGalleryItem.tag}
-                              onChange={(e) => setNewGalleryItem({ ...newGalleryItem, tag: e.target.value })}
-                              className="w-full bg-cream rounded-xl px-4 py-3.5 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-bold"
-                            >
-                              <option value="RESIDENTIAL">RESIDENTIAL</option>
-                              <option value="WORKSPACE">WORKSPACE</option>
-                              <option value="STYLING">STYLING</option>
-                              <option value="CONCEPT">CONCEPT</option>
-                            </select>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* File Drag / Drop Box */}
+                          <div 
+                            onDragEnter={(e) => handleDrag(e, setDragActive)}
+                            onDragOver={(e) => handleDrag(e, setDragActive)}
+                            onDragLeave={(e) => handleDrag(e, setDragActive)}
+                            onDrop={(e) => handleDrop(e, 'gallery', setDragActive)}
+                            className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all flex flex-col items-center justify-center minimum-h-[160px] ${dragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 hover:border-emerald/35 bg-cream/20'}`}
+                          >
+                            {filePreview ? (
+                              <div className="relative w-full max-w-[200px] aspect-video bg-emerald/5 rounded-xl overflow-hidden group">
+                                <img src={filePreview} alt="Selected file preview" className="w-full h-full object-cover" />
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setFilePreview('');
+                                    setNewGalleryItem(prev => ({ ...prev, url: '' }));
+                                  }}
+                                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-cream uppercase cursor-pointer"
+                                >
+                                  Remove Image
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <UploadCloud size={24} className="text-emerald/40 mx-auto" />
+                                <p className="text-[11px] font-bold text-emerald">Drag and drop file here</p>
+                                <p className="text-[9px] text-emerald/50">Supports JPEG, PNG, or WebP (max 1.5MB)</p>
+                                <label htmlFor="gallery-file-picker" className="bg-emerald text-cream px-3 py-1.5 rounded-lg text-[9px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-2 inline-block">
+                                  Browse Image File
+                                </label>
+                                <input 
+                                  type="file" 
+                                  id="gallery-file-picker" 
+                                  accept="image/png, image/jpeg, image/webp" 
+                                  className="hidden" 
+                                  onChange={(e) => handleFileUploadChange(e, 'gallery')} 
+                                />
+                              </div>
+                            )}
                           </div>
-                          <div>
+
+                          {/* Fallback Paste Link & Metadata Form */}
+                          <form onSubmit={handleCreateGalleryItem} className="space-y-4">
+                            <div>
+                              <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Image URL Address (Optional Fallback)</span>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald/30"><Link2 size={12} /></span>
+                                <input 
+                                  type="text"
+                                  value={newGalleryItem.url}
+                                  onChange={(e) => {
+                                    setNewGalleryItem({ ...newGalleryItem, url: e.target.value });
+                                    if (e.target.value && !e.target.value.startsWith('data:')) {
+                                      setFilePreview(''); // URL takes precedence
+                                    }
+                                  }}
+                                  placeholder="Paste secure direct photo web link..."
+                                  className="w-full bg-cream rounded-xl pl-9 pr-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Project Name</span>
+                                <input 
+                                  type="text"
+                                  value={newGalleryItem.title}
+                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, title: e.target.value })}
+                                  placeholder="e.g. Linen bedroom"
+                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Category Tag</span>
+                                <select 
+                                  value={newGalleryItem.tag}
+                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, tag: e.target.value })}
+                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
+                                >
+                                  <option value="RESIDENTIAL">RESIDENTIAL</option>
+                                  <option value="WORKSPACE">WORKSPACE</option>
+                                  <option value="STYLING">STYLING</option>
+                                  <option value="CONCEPT">CONCEPT</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Visual Layout Span Grid Configuration</span>
+                              <select 
+                                value={newGalleryItem.span}
+                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, span: e.target.value })}
+                                className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
+                              >
+                                <option value="md:col-span-1 md:row-span-1">Standard square tile (1x1)</option>
+                                <option value="md:col-span-1 md:row-span-2">Portrait tall accent (1x2)</option>
+                                <option value="md:col-span-2 md:row-span-1">Landscape wide panorama (2x1)</option>
+                                <option value="md:col-span-2 md:row-span-2">Epic grand presentation (2x2)</option>
+                              </select>
+                            </div>
+
                             <button 
                               type="submit"
-                              className="w-full bg-emerald text-cream py-4 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                              disabled={!newGalleryItem.url}
+                              className="w-full bg-emerald text-cream py-3.5 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                              <Plus size={14} /> Add Image
+                              <Plus size={14} /> Add Project Image
                             </button>
-                          </div>
-                          <div className="md:col-span-2 mt-2">
-                            <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Project Name</span>
-                            <input 
-                              type="text"
-                              value={newGalleryItem.title}
-                              onChange={(e) => setNewGalleryItem({ ...newGalleryItem, title: e.target.value })}
-                              placeholder="e.g. Linen bedroom"
-                              className="w-full bg-cream rounded-xl px-4 py-3.5 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
-                            />
-                          </div>
-                          <div className="md:col-span-2 mt-2">
-                            <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Visual grid layout spans</span>
-                            <select 
-                              value={newGalleryItem.span}
-                              onChange={(e) => setNewGalleryItem({ ...newGalleryItem, span: e.target.value })}
-                              className="w-full bg-cream rounded-xl px-4 py-3.5 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-bold"
-                            >
-                              <option value="md:col-span-1 md:row-span-1">Standard square (1x1)</option>
-                              <option value="md:col-span-1 md:row-span-2">Portrait tall (1x2)</option>
-                              <option value="md:col-span-2 md:row-span-1">Landscape wide (2x1)</option>
-                              <option value="md:col-span-2 md:row-span-2">Epic grand (2x2)</option>
-                            </select>
-                          </div>
+                          </form>
                         </div>
-                      </form>
+                      </div>
 
                       {/* CURRENT GALLERY TILES LIST */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {gallery.map((tile) => (
-                          <div key={tile.id} className="bg-white/50 border border-emerald/5 rounded-2xl overflow-hidden p-3 relative group flex flex-col justify-between">
-                            <div className="w-full h-36 bg-emerald/5 rounded-xl overflow-hidden mb-3">
-                              {tile.url.startsWith('http') ? (
-                                <img src={tile.url} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-center p-3 text-emerald/30 font-mono text-[9px] uppercase font-bold">
-                                  <Building size={16} className="mb-2" /> Local Asset Resource: <br /> "{tile.url}"
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-emerald/5">
+                          <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Current Deployed Gallery Tiles</h3>
+                          <span className="text-[10px] bg-emerald/10 text-emerald px-2.5 py-1 rounded-full font-mono font-bold">{gallery.length} Images</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                          {gallery.map((tile, idx) => (
+                            <div key={tile.id} className="bg-white p-4 rounded-3xl border border-emerald/5 relative group flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                              <div className="space-y-3">
+                                <div className="w-full h-40 bg-zinc-100 rounded-2xl overflow-hidden mb-3 relative">
+                                  {tile.url.startsWith('http') || tile.url.startsWith('data:image/') ? (
+                                    <img src={tile.url} alt={tile.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-3 text-emerald/30 font-mono text-[9px] uppercase font-bold bg-cream/40">
+                                      <Building size={16} className="mb-2" /> Local Asset Resource: <br /> "{tile.url}"
+                                    </div>
+                                  )}
+                                  
+                                  {/* Delete Hover Action */}
+                                  <button 
+                                    onClick={() => handleDeleteGalleryItem(tile.id)}
+                                    className="absolute top-3 right-3 w-8 h-8 rounded-xl bg-red-500 hover:bg-red-600 text-cream flex items-center justify-center transition-colors cursor-pointer shadow-md"
+                                    title="Delete image"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="text-[8px] bg-terracotta/10 text-terracotta px-2 py-0.5 rounded font-bold uppercase">{tile.tag}</span>
-                                <span className="text-[8px] text-emerald/40 font-semibold">{tile.span.split(' ')[0]}</span>
+                                
+                                <div>
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[8px] bg-terracotta/10 text-terracotta px-2.5 py-1 rounded-md font-bold uppercase tracking-wide">{tile.tag}</span>
+                                    <span className="text-[9px] font-mono text-emerald/40 font-bold">Pos {idx + 1}</span>
+                                  </div>
+                                  <h4 className="text-xs font-bold text-emerald truncate">{tile.title || 'Untitled Space'}</h4>
+                                  <p className="text-[9px] text-emerald/40 truncate font-mono mt-0.5">{tile.span.includes('col-span-2 font') ? 'Grid: 2x2' : tile.span.replace('md:', '')}</p>
+                                </div>
                               </div>
-                              <h4 className="text-xs font-bold text-emerald truncate">{tile.title || 'Untitled Space'}</h4>
+
+                              {/* Reordering Command Row */}
+                              <div className="flex justify-between items-center pt-3 mt-3 border-t border-emerald/5 gap-2">
+                                <button 
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveGalleryItem(tile.id, 'left')}
+                                  className="flex-1 bg-cream hover:bg-emerald-soft/10 text-emerald py-1.5 rounded-lg text-[10px] uppercase font-bold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-emerald/5 select-none"
+                                >
+                                  <ChevronLeft size={12} /> Move Left
+                                </button>
+                                <button 
+                                  type="button"
+                                  disabled={idx === gallery.length - 1}
+                                  onClick={() => handleMoveGalleryItem(tile.id, 'right')}
+                                  className="flex-1 bg-cream hover:bg-emerald-soft/10 text-emerald py-1.5 rounded-lg text-[10px] uppercase font-bold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-emerald/5 select-none"
+                                >
+                                  Move Right <ChevronRight size={12} />
+                                </button>
+                              </div>
                             </div>
-                            <button 
-                              onClick={() => handleDeleteGalleryItem(tile.id)}
-                              className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-red-500 hover:bg-red-600 text-cream flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-md shadow-black/10"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
 
                     </motion.div>

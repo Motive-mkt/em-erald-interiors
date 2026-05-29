@@ -72,7 +72,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string;
-  role: 'owner' | 'employee';
+  role: 'owner' | 'admin' | 'employee' | 'user';
   approved: boolean;
 }
 
@@ -101,6 +101,7 @@ export interface GalleryDocument {
   tag: string;
   title: string;
   span: string; // Grid span formatting
+  order?: number; // Sorting/ordering sequence index
 }
 
 export interface SiteConfigDocument {
@@ -180,6 +181,80 @@ export async function seedInitialData() {
   }
 }
 
+// Ensures a user document exists in Firestore and returns the UserProfile.
+// Fully satisfies the "First User as Owner" check.
+export async function ensureAndFetchUserProfile(user: FirebaseUser, signupName?: string): Promise<UserProfile> {
+  if (!user.email) {
+    throw new Error("User has no email associated with their account.");
+  }
+  
+  const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
+
+  // Determine if this is the bootstrapped or designated master owner email
+  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com";
+
+  if (userSnap.exists()) {
+    const profile = userSnap.data() as UserProfile;
+    let needsUpdate = false;
+    
+    if (isOwnerEmail && (profile.role !== "owner" || !profile.approved)) {
+      profile.role = "owner";
+      profile.approved = true;
+      needsUpdate = true;
+    } else if (!profile.approved) {
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        // Check if there is already an owner
+        const hasOwner = usersSnap.docs.some(docRef => {
+          const u = docRef.data() as UserProfile;
+          return u.role === "owner" && u.approved;
+        });
+        if (!hasOwner || usersSnap.size <= 1) {
+          profile.role = "owner";
+          profile.approved = true;
+          needsUpdate = true;
+        }
+      } catch (checkErr) {
+        console.warn("Soft check for existing owner failed:", checkErr);
+      }
+    }
+    
+    if (needsUpdate) {
+      await setDoc(userRef, profile);
+    }
+    return profile;
+  }
+
+  // Double check if any users exist in the collection for the first signup logic
+  let isFirstUser = false;
+  let hasOwner = false;
+  try {
+    const usersSnap = await getDocs(collection(db, "users"));
+    isFirstUser = usersSnap.empty;
+    hasOwner = usersSnap.docs.some(docRef => {
+      const u = docRef.data() as UserProfile;
+      return u.role === "owner" && u.approved;
+    });
+  } catch (err) {
+    console.warn("Soft check for existing users failed, assuming fallback.", err);
+  }
+
+  const assignedAsOwner = isOwnerEmail || isFirstUser || !hasOwner;
+
+  const newProfile: UserProfile = {
+    uid: user.uid,
+    email: user.email.toLowerCase(),
+    displayName: signupName || user.displayName || user.email.split("@")[0],
+    photoURL: user.photoURL || "",
+    role: assignedAsOwner ? "owner" : "employee",
+    approved: assignedAsOwner ? true : false,
+  };
+
+  await setDoc(userRef, newProfile);
+  return newProfile;
+}
+
 // Sign-In with Google Auth integration with Owner/Employee onboarding rules
 export async function signInUserWithGoogle(): Promise<UserProfile> {
   const result = await signInWithPopup(auth, googleProvider);
@@ -187,58 +262,7 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
   if (!user || !user.email) {
     throw new Error("Unable to read Google user profile details.");
   }
-
-  // Check if profile document already exists
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
-
-  if (userSnap.exists()) {
-    const profile = userSnap.data() as UserProfile;
-    // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no active owners
-    const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com";
-    if (isOwnerEmail && (profile.role !== "owner" || !profile.approved)) {
-      profile.role = "owner";
-      profile.approved = true;
-      await setDoc(userRef, profile);
-    } else if (!profile.approved) {
-      const usersSnap = await getDocs(collection(db, "users"));
-      const hasOwner = usersSnap.docs.some(docRef => {
-        const u = docRef.data() as UserProfile;
-        return u.role === "owner" && u.approved;
-      });
-      if (!hasOwner || usersSnap.size <= 1) {
-        profile.role = "owner";
-        profile.approved = true;
-        await setDoc(userRef, profile);
-      }
-    }
-    return profile;
-  }
-
-  // Check if this is the first user in the collection
-  const usersSnap = await getDocs(collection(db, "users"));
-  const isFirstUser = usersSnap.empty;
-
-  const hasOwner = usersSnap.docs.some(docRef => {
-    const u = docRef.data() as UserProfile;
-    return u.role === "owner" && u.approved;
-  });
-
-  // Determine role based on email context, first user check, or lack of active owner
-  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com" || isFirstUser || !hasOwner;
-  
-  const newProfile: UserProfile = {
-    uid: user.uid,
-    email: user.email.toLowerCase(),
-    displayName: user.displayName || user.email.split("@")[0],
-    photoURL: user.photoURL || "",
-    role: isOwnerEmail ? "owner" : "employee",
-    approved: isOwnerEmail ? true : false,
-  };
-
-  // Write the user document
-  await setDoc(userRef, newProfile);
-  return newProfile;
+  return await ensureAndFetchUserProfile(user);
 }
 
 // Transient tracking for Custom Registration Display Name to coordinate with onAuthStateChanged and avoid concurrent promise collisions

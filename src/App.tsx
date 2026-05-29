@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { SplashGate } from './components/SplashGate';
 import { Hero } from './components/Hero';
 import { Services } from './components/Services';
@@ -11,12 +12,9 @@ import { Gallery } from './components/Gallery';
 import { Testimonials } from './components/Testimonials';
 import { Contact, Footer } from './components/Contact';
 import { AdminPanel } from './components/AdminPanel';
+import { Profile } from './components/Profile';
 import { 
   db, 
-  auth,
-  fetchSiteConfig, 
-  fetchServices, 
-  fetchGalleryItems,
   SiteConfigDocument,
   ServiceDocument,
   GalleryDocument,
@@ -24,37 +22,17 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_GALLERY
 } from './lib/firebase';
-import { onSnapshot, doc, collection, deleteDoc, getDoc } from 'firebase/firestore';
+import { onSnapshot, doc, collection, deleteDoc } from 'firebase/firestore';
 
-export default function App() {
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+function AppRoutes() {
+  const navigate = useNavigate();
   const [selectedService, setSelectedService] = useState('');
 
   // Enterprise Database States
   const [config, setConfig] = useState<SiteConfigDocument | null>(null);
   const [services, setServices] = useState<ServiceDocument[]>([]);
   const [gallery, setGallery] = useState<GalleryDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Auto-redirect / show the admin panel if the user is signed in and approved
-  useEffect(() => {
-    const unsubAuth = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists()) {
-            const profile = snap.data();
-            if (profile && profile.approved) {
-              setIsAdminOpen(true);
-            }
-          }
-        } catch (err) {
-          console.error("Error checking auth status in App:", err);
-        }
-      }
-    });
-    return () => unsubAuth();
-  }, []);
+  const [, setLoading] = useState(true);
 
   // Synchronize Firestore Elements instantly using Live Document Snapshots
   useEffect(() => {
@@ -109,41 +87,70 @@ export default function App() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-cream selection:bg-terracotta/30 snap-y snap-proximity overflow-y-auto">
-      <SplashGate />
-      
-      <Hero 
-        config={config} 
-        onOpenAdmin={() => setIsAdminOpen(true)} 
+    <Routes>
+      <Route 
+        path="/" 
+        element={
+          <main className="min-h-screen bg-cream selection:bg-terracotta/30 snap-y snap-proximity overflow-y-auto">
+            <SplashGate />
+            
+            <Hero 
+              config={config} 
+              onOpenAdmin={() => navigate('/admin')} 
+            />
+            
+            <div id="main-content">
+              <Services 
+                services={services} 
+                onSelectService={(serviceTitle) => setSelectedService(serviceTitle)} 
+              />
+              
+              <Gallery 
+                items={gallery} 
+              />
+              
+              <Testimonials />
+              
+              <Contact 
+                config={config}
+                services={services}
+                selectedService={selectedService}
+                setSelectedService={(serviceTitle) => setSelectedService(serviceTitle)}
+              />
+            </div>
+            
+            <Footer />
+          </main>
+        } 
       />
-      
-      <div id="main-content">
-        <Services 
-          services={services} 
-          onSelectService={(serviceTitle) => setSelectedService(serviceTitle)} 
-        />
-        
-        <Gallery 
-          items={gallery} 
-        />
-        
-        <Testimonials />
-        
-        <Contact 
-          config={config}
-          services={services}
-          selectedService={selectedService}
-          setSelectedService={(serviceTitle) => setSelectedService(serviceTitle)}
-        />
-      </div>
-      
-      <Footer />
 
-      {/* Admin Panel Modal Overlay */}
-      <AdminPanel 
-        isOpen={isAdminOpen} 
-        onClose={() => setIsAdminOpen(false)}
+      <Route 
+        path="/admin" 
+        element={
+          <AdminPanel 
+            isOpen={true} 
+            onClose={() => navigate('/')} 
+          />
+        } 
       />
-    </main>
+
+      <Route 
+        path="/profile" 
+        element={
+          <Profile />
+        } 
+      />
+
+      {/* Fallback redirects to Home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <AppRoutes />
+    </Router>
   );
 }
