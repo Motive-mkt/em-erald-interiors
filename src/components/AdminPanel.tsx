@@ -93,6 +93,21 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
           
           if (snap.exists()) {
             userProfile = snap.data() as UserProfile;
+            
+            // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no other users
+            const isOwnerEmail = fUser.email?.toLowerCase() === 'jessescaledyou@gmail.com';
+            if (isOwnerEmail && (userProfile.role !== 'owner' || !userProfile.approved)) {
+              userProfile.role = 'owner';
+              userProfile.approved = true;
+              await setDoc(uRef, userProfile);
+            } else if (!userProfile.approved) {
+              const usersSnap = await getDocs(collection(db, 'users'));
+              if (usersSnap.size <= 1) {
+                userProfile.role = 'owner';
+                userProfile.approved = true;
+                await setDoc(uRef, userProfile);
+              }
+            }
           } else if (fUser.email) {
             // First time login auto boarding
             // Query current users to check if this is the first registration

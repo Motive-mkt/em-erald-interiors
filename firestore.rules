@@ -96,11 +96,8 @@ service cloud.firestore {
     // 1. Users Collection
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isApprovedUser());
-      allow list: if isApprovedUser();
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(request.resource.data) && (
-        (isBootstrappedOwner() && request.resource.data.role == "owner" && request.resource.data.approved == true) ||
-        (!isBootstrappedOwner() && request.resource.data.role == "employee" && request.resource.data.approved == false)
-      );
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(request.resource.data);
       allow update: if isOwner() && isValidUser(request.resource.data);
       allow delete: if isOwner() && userId != request.auth.uid;
     }

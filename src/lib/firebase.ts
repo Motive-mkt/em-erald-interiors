@@ -163,7 +163,22 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
   const userSnap = await getDoc(userRef);
 
   if (userSnap.exists()) {
-    return userSnap.data() as UserProfile;
+    const profile = userSnap.data() as UserProfile;
+    // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no other users
+    const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com";
+    if (isOwnerEmail && (profile.role !== "owner" || !profile.approved)) {
+      profile.role = "owner";
+      profile.approved = true;
+      await setDoc(userRef, profile);
+    } else if (!profile.approved) {
+      const usersSnap = await getDocs(collection(db, "users"));
+      if (usersSnap.size <= 1) {
+        profile.role = "owner";
+        profile.approved = true;
+        await setDoc(userRef, profile);
+      }
+    }
+    return profile;
   }
 
   // Check if this is the first user in the collection
