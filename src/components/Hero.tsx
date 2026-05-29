@@ -58,17 +58,24 @@ export function Hero({ config, onOpenAdmin }: HeroProps) {
   return (
     <section id="main-hero" className="relative min-h-screen w-full flex flex-col px-4 md:px-12 lg:px-24 bg-cream overflow-hidden">
       {/* Navigation Header */}
-      <header className="flex justify-between items-center py-8 relative z-20">
+      <header className="flex justify-between items-center py-8 relative z-20 gap-4 flex-wrap sm:flex-nowrap">
         <Logo size="md" />
         
-        <nav className="hidden md:flex items-center gap-10 text-emerald/70 text-sm font-medium">
-          <button onClick={() => scrollToSection('services')} className="hover:text-emerald transition-colors cursor-pointer">Services</button>
-          <button onClick={() => scrollToSection('gallery')} className="hover:text-emerald transition-colors cursor-pointer">Portfolio</button>
-          <button onClick={() => scrollToSection('reviews')} className="hover:text-emerald transition-colors cursor-pointer">Reviews</button>
-          <button onClick={() => scrollToSection('contact')} className="hover:text-emerald transition-colors cursor-pointer">Contact</button>
+        <nav className="flex items-center gap-4 sm:gap-5 md:gap-10 text-emerald/70 text-xs md:text-sm font-medium overflow-x-auto no-scrollbar py-1 shrink-0 pb-2 sm:pb-0">
+          <button onClick={() => scrollToSection('services')} className="hover:text-emerald transition-colors cursor-pointer shrink-0">Services</button>
+          <button onClick={() => scrollToSection('gallery')} className="hover:text-emerald transition-colors cursor-pointer shrink-0">Portfolio</button>
+          <button onClick={() => scrollToSection('reviews')} className="hover:text-emerald transition-colors cursor-pointer shrink-0">Reviews</button>
+          <button onClick={() => scrollToSection('contact')} className="hover:text-emerald transition-colors cursor-pointer shrink-0">Contact</button>
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
+          <a 
+            href={`tel:${currentPhone.replace(/\s+/g, '')}`} 
+            className="flex lg:hidden items-center justify-center w-10 h-10 rounded-full bg-emerald/5 hover:bg-emerald/10 text-emerald/60 hover:text-emerald transition-all cursor-pointer"
+            title="Call Studio"
+          >
+            <Phone size={15} />
+          </a>
           <button 
             onClick={onOpenAdmin}
             className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald/5 hover:bg-emerald/10 text-emerald/60 hover:text-emerald transition-all cursor-pointer"

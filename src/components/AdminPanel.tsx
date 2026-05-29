@@ -84,6 +84,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
 
   // Handle Authentication Change listener
   useEffect(() => {
+    setLoadingUser(true);
     const unsub = auth.onAuthStateChanged(async (fUser) => {
       if (fUser) {
         try {
@@ -101,27 +102,36 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
               userProfile.approved = true;
               await setDoc(uRef, userProfile);
             } else if (!userProfile.approved) {
-              const usersSnap = await getDocs(collection(db, 'users'));
-              const hasOwner = usersSnap.docs.some(docRef => {
-                const u = docRef.data() as UserProfile;
-                return u.role === 'owner' && u.approved;
-              });
-              if (!hasOwner || usersSnap.size <= 1) {
-                userProfile.role = 'owner';
-                userProfile.approved = true;
-                await setDoc(uRef, userProfile);
+              try {
+                const usersSnap = await getDocs(collection(db, 'users'));
+                const hasOwner = usersSnap.docs.some(docRef => {
+                  const u = docRef.data() as UserProfile;
+                  return u.role === 'owner' && u.approved;
+                });
+                if (!hasOwner || usersSnap.size <= 1) {
+                  userProfile.role = 'owner';
+                  userProfile.approved = true;
+                  await setDoc(uRef, userProfile);
+                }
+              } catch (checkErr) {
+                console.warn("Soft check for existing owner failed:", checkErr);
               }
             }
           } else if (fUser.email) {
             // First time login auto boarding
-            // Query current users to check if this is the first registration
-            const usersSnap = await getDocs(collection(db, 'users'));
-            const isFirstUser = usersSnap.empty;
-
-            const hasOwner = usersSnap.docs.some(docRef => {
-              const u = docRef.data() as UserProfile;
-              return u.role === 'owner' && u.approved;
-            });
+            let isFirstUser = false;
+            let hasOwner = false;
+            try {
+              // Query current users to check if this is the first registration
+              const usersSnap = await getDocs(collection(db, 'users'));
+              isFirstUser = usersSnap.empty;
+              hasOwner = usersSnap.docs.some(docRef => {
+                const u = docRef.data() as UserProfile;
+                return u.role === 'owner' && u.approved;
+              });
+            } catch (queryErr) {
+              console.warn("Soft check for existing users failed during signup. Proceeding with defaults.", queryErr);
+            }
 
             const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com' || isFirstUser || !hasOwner;
             const signupName = getPendingSignupName();
@@ -133,13 +143,18 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
               role: isOwnerEmail ? 'owner' : 'employee',
               approved: isOwnerEmail ? true : false,
             };
-            await setDoc(uRef, profile);
+            try {
+              await setDoc(uRef, profile);
+            } catch (writeErr) {
+              console.error("Failed to write initial user profile document:", writeErr);
+            }
             userProfile = profile;
           }
 
           setCurrentUser(userProfile);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Auth sync error:", err);
+          setErrorText(err.message || "Error synchronizing database secure session.");
         }
       } else {
         setCurrentUser(null);
@@ -424,16 +439,16 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
             {/* Close Floating Handle */}
             <button 
               onClick={onClose}
-              className="absolute top-6 left-6 md:left-auto md:right-6 w-10 h-10 rounded-full bg-emerald/5 flex items-center justify-center text-emerald hover:bg-emerald/10 cursor-pointer z-[60]"
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-emerald/5 flex items-center justify-center text-emerald hover:bg-emerald/10 cursor-pointer z-[60]"
               id="admin-close-btn"
             >
               <X size={18} />
             </button>
 
             {/* Left Sidebar Menu */}
-            <div className="w-full md:w-64 bg-emerald text-cream px-6 py-12 flex flex-col justify-between shrink-0 h-[240px] md:h-full justify-center md:justify-between items-center md:items-stretch">
-              <div>
-                <div className="flex items-center gap-3 mb-10">
+            <div className="w-full md:w-64 bg-emerald text-cream p-6 md:py-12 flex flex-col justify-between shrink-0 h-auto md:h-full items-stretch relative">
+              <div className="md:mt-0 pr-10 md:pr-0">
+                <div className="flex items-center gap-3 mb-6 md:mb-10">
                   <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                     <ShieldCheck size={18} className="text-terracotta" />
                   </div>
@@ -444,44 +459,44 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                 </div>
 
                 {currentUser && currentUser.approved && (
-                  <nav className="space-y-1 w-full flex flex-row md:flex-col overflow-x-auto gap-2 md:gap-0 select-none no-scrollbar">
+                  <nav className="space-y-1 w-full flex flex-row md:flex-col overflow-x-auto gap-2 md:gap-1 select-none no-scrollbar pb-3 md:pb-0">
                     <button 
                       onClick={() => setActiveTab('messages')}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-3 transition-colors shrink-0 ${activeTab === 'messages' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                      className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'messages' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                     >
                       <MessageSquare size={14} /> Messages
                       {messages.filter(m => m.status === 'unread').length > 0 && (
-                        <span className="ml-auto w-4 h-4 rounded-full bg-terracotta text-cream text-[8px] flex items-center justify-center font-bold">
+                        <span className="ml-2 md:ml-auto w-4 h-4 rounded-full bg-terracotta text-cream text-[8px] flex items-center justify-center font-bold">
                           {messages.filter(m => m.status === 'unread').length}
                         </span>
                       )}
                     </button>
                     <button 
                       onClick={() => setActiveTab('config')}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-3 transition-colors shrink-0 ${activeTab === 'config' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                      className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'config' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                     >
                       <FileText size={14} /> Configuration
                     </button>
                     <button 
                       onClick={() => setActiveTab('services')}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-3 transition-colors shrink-0 ${activeTab === 'services' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                      className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'services' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                     >
                       <Layers size={14} /> Services
                     </button>
                     <button 
                       onClick={() => setActiveTab('gallery')}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-3 transition-colors shrink-0 ${activeTab === 'gallery' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                      className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'gallery' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                     >
                       <Image size={14} /> Gallery
                     </button>
                     {currentUser.role === 'owner' && (
                       <button 
                         onClick={() => setActiveTab('users')}
-                        className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-3 transition-colors shrink-0 ${activeTab === 'users' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                        className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'users' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                       >
                         <Users size={14} /> Team Panel
                         {users.filter(u => !u.approved).length > 0 && (
-                          <span className="ml-auto w-4 h-4 rounded-full bg-terracotta text-cream text-[8px] flex items-center justify-center font-bold">
+                          <span className="ml-2 md:ml-auto w-4 h-4 rounded-full bg-terracotta text-cream text-[8px] flex items-center justify-center font-bold">
                             {users.filter(u => !u.approved).length}
                           </span>
                         )}
@@ -492,17 +507,17 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
               </div>
 
               {currentUser && (
-                <div className="border-t border-white/10 pt-6 mt-6 md:mt-0 flex items-center justify-between w-full">
+                <div className="border-t border-white/10 pt-4 mt-2 md:mt-0 flex items-center justify-between w-full">
                   <div className="flex items-center gap-3">
                     {currentUser.photoURL ? (
                       <img src={currentUser.photoURL} alt="" className="w-8 h-8 rounded-full" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center font-medium uppercase text-xs">
-                        {currentUser.displayName[0]}
+                        {(currentUser.displayName || currentUser.email || 'U')[0]}
                       </div>
                     )}
                     <div className="max-w-[120px] overflow-hidden">
-                      <p className="text-[11px] font-bold truncate leading-none mb-1">{currentUser.displayName}</p>
+                      <p className="text-[11px] font-bold truncate leading-none mb-1">{currentUser.displayName || currentUser.email}</p>
                       <p className="text-[8px] text-white/50 tracking-wider font-semibold uppercase">{currentUser.role}</p>
                     </div>
                   </div>
@@ -518,8 +533,19 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
             </div>
 
             {/* Right Main Working Area */}
-            <div className="flex-1 px-8 md:px-12 py-12 md:py-16 overflow-y-auto bg-cream h-[calc(100%-240px)] md:h-full">
+            <div className="flex-1 px-6 md:px-12 py-8 md:py-16 overflow-y-auto bg-cream h-0 md:h-full">
               
+              {/* LOADING USER PROFILE STATE */}
+              {loadingUser && (
+                <div className="h-full flex flex-col justify-center items-center text-center max-w-sm mx-auto" id="admin-loading-screen">
+                  <div className="w-16 h-16 rounded-full bg-emerald/5 flex items-center justify-center text-emerald mb-8 animate-spin">
+                    <Hourglass size={24} />
+                  </div>
+                  <h3 className="text-xl font-serif text-emerald mb-2">Syncing Console...</h3>
+                  <p className="text-emerald/50 text-xs font-semibold">Verifying secure employee credentials, please hold.</p>
+                </div>
+              )}
+
               {/* SCREEN 1: NOT AUTHENTICATED */}
               {!currentUser && !loadingUser && (
                 <div className="py-6 flex flex-col justify-center items-center text-center max-w-sm mx-auto" id="admin-login-screen">
