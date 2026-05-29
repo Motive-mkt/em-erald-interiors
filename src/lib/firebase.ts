@@ -164,7 +164,7 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
 
   if (userSnap.exists()) {
     const profile = userSnap.data() as UserProfile;
-    // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no other users
+    // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no active owners
     const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com";
     if (isOwnerEmail && (profile.role !== "owner" || !profile.approved)) {
       profile.role = "owner";
@@ -172,7 +172,11 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
       await setDoc(userRef, profile);
     } else if (!profile.approved) {
       const usersSnap = await getDocs(collection(db, "users"));
-      if (usersSnap.size <= 1) {
+      const hasOwner = usersSnap.docs.some(docRef => {
+        const u = docRef.data() as UserProfile;
+        return u.role === "owner" && u.approved;
+      });
+      if (!hasOwner || usersSnap.size <= 1) {
         profile.role = "owner";
         profile.approved = true;
         await setDoc(userRef, profile);
@@ -185,8 +189,13 @@ export async function signInUserWithGoogle(): Promise<UserProfile> {
   const usersSnap = await getDocs(collection(db, "users"));
   const isFirstUser = usersSnap.empty;
 
-  // Determine role based on email context or first user check
-  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com" || isFirstUser;
+  const hasOwner = usersSnap.docs.some(docRef => {
+    const u = docRef.data() as UserProfile;
+    return u.role === "owner" && u.approved;
+  });
+
+  // Determine role based on email context, first user check, or lack of active owner
+  const isOwnerEmail = user.email.toLowerCase() === "jessescaledyou@gmail.com" || isFirstUser || !hasOwner;
   
   const newProfile: UserProfile = {
     uid: user.uid,

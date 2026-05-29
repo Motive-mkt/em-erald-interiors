@@ -13,6 +13,7 @@ import { Contact, Footer } from './components/Contact';
 import { AdminPanel } from './components/AdminPanel';
 import { 
   db, 
+  auth,
   fetchSiteConfig, 
   fetchServices, 
   fetchGalleryItems,
@@ -23,7 +24,7 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_GALLERY
 } from './lib/firebase';
-import { onSnapshot, doc, collection, deleteDoc } from 'firebase/firestore';
+import { onSnapshot, doc, collection, deleteDoc, getDoc } from 'firebase/firestore';
 
 export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -34,6 +35,26 @@ export default function App() {
   const [services, setServices] = useState<ServiceDocument[]>([]);
   const [gallery, setGallery] = useState<GalleryDocument[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Auto-redirect / show the admin panel if the user is signed in and approved
+  useEffect(() => {
+    const unsubAuth = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          if (snap.exists()) {
+            const profile = snap.data();
+            if (profile && profile.approved) {
+              setIsAdminOpen(true);
+            }
+          }
+        } catch (err) {
+          console.error("Error checking auth status in App:", err);
+        }
+      }
+    });
+    return () => unsubAuth();
+  }, []);
 
   // Synchronize Firestore Elements instantly using Live Document Snapshots
   useEffect(() => {

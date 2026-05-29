@@ -94,7 +94,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
           if (snap.exists()) {
             userProfile = snap.data() as UserProfile;
             
-            // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no other users
+            // Auto-promote/upgrade to owner if user is the bootstrapped email OR if they registered but are currently pending and there are no active owners
             const isOwnerEmail = fUser.email?.toLowerCase() === 'jessescaledyou@gmail.com';
             if (isOwnerEmail && (userProfile.role !== 'owner' || !userProfile.approved)) {
               userProfile.role = 'owner';
@@ -102,7 +102,11 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
               await setDoc(uRef, userProfile);
             } else if (!userProfile.approved) {
               const usersSnap = await getDocs(collection(db, 'users'));
-              if (usersSnap.size <= 1) {
+              const hasOwner = usersSnap.docs.some(docRef => {
+                const u = docRef.data() as UserProfile;
+                return u.role === 'owner' && u.approved;
+              });
+              if (!hasOwner || usersSnap.size <= 1) {
                 userProfile.role = 'owner';
                 userProfile.approved = true;
                 await setDoc(uRef, userProfile);
@@ -114,7 +118,12 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
             const usersSnap = await getDocs(collection(db, 'users'));
             const isFirstUser = usersSnap.empty;
 
-            const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com' || isFirstUser;
+            const hasOwner = usersSnap.docs.some(docRef => {
+              const u = docRef.data() as UserProfile;
+              return u.role === 'owner' && u.approved;
+            });
+
+            const isOwnerEmail = fUser.email.toLowerCase() === 'jessescaledyou@gmail.com' || isFirstUser || !hasOwner;
             const signupName = getPendingSignupName();
             const profile: UserProfile = {
               uid: fUser.uid,
