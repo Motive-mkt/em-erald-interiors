@@ -24,13 +24,43 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from "firebase/auth";
-import firebaseConfig from "../../firebase-applet-config.json";
+// Retrieve values from standard Vite environment variables for Vercel deployment
+const viteEnv = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
+};
+
+// Fall back to local firebase-applet-config.json for seamless AI Studio preview execution
+import firebaseAppletConfig from "../../firebase-applet-config.json";
+
+const firebaseConfig = {
+  apiKey: viteEnv.apiKey || firebaseAppletConfig.apiKey,
+  authDomain: viteEnv.authDomain || firebaseAppletConfig.authDomain,
+  projectId: viteEnv.projectId || firebaseAppletConfig.projectId,
+  storageBucket: viteEnv.storageBucket || firebaseAppletConfig.storageBucket,
+  messagingSenderId: viteEnv.messagingSenderId || firebaseAppletConfig.messagingSenderId,
+  appId: viteEnv.appId || firebaseAppletConfig.appId,
+  measurementId: viteEnv.measurementId || firebaseAppletConfig.measurementId,
+  firestoreDatabaseId: viteEnv.firestoreDatabaseId || firebaseAppletConfig.firestoreDatabaseId,
+};
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with Custom Database ID support
-export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId || "(default)");
+// Initialize Firestore with Custom Database ID support and immediate long polling auto-detect for proxy-served sandboxes
+const dbId = (!firebaseConfig.firestoreDatabaseId || firebaseConfig.firestoreDatabaseId === "(default)")
+  ? undefined
+  : firebaseConfig.firestoreDatabaseId;
+
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+}, dbId);
 
 // Initialize Auth
 export const auth = getAuth(app);
