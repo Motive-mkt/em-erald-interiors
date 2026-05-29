@@ -54,6 +54,7 @@
         "tag": { "type": "string", "description": "Workspace/Residential/Styling project categories." },
         "title": { "type": "string", "description": "Name of the space or area." },
         "span": { "type": "string", "description": "Vite layout span settings." },
+        "order": { "type": "number", "description": "Sorting or ordering index." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
       },
       "required": ["id", "url", "tag", "title", "span"]

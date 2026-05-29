@@ -39,7 +39,9 @@ import {
   ServiceDocument, 
   GalleryDocument, 
   SiteConfigDocument,
-  seedInitialData
+  seedInitialData,
+  OperationType,
+  handleFirestoreError
 } from '../lib/firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -85,12 +87,31 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
 
   const [savingConfig, setSavingConfig] = useState(false);
   const [errorText, setErrorText] = useState('');
+  const [configSuccess, setConfigSuccess] = useState('');
+  const [configError, setConfigError] = useState('');
 
   // Dynamic Image Upload & Interactive States
   const [uploaderError, setUploaderError] = useState('');
   const [filePreview, setFilePreview] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [logoDragActive, setLogoDragActive] = useState(false);
+  const [splash1DragActive, setSplash1DragActive] = useState(false);
+  const [splash2DragActive, setSplash2DragActive] = useState(false);
+  const [splash3DragActive, setSplash3DragActive] = useState(false);
+  const [splash4DragActive, setSplash4DragActive] = useState(false);
+
+  // Bulk Mode Upload states
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  interface BulkQueueItem {
+    id: string;
+    name: string;
+    size: number;
+    base64: string;
+    title: string;
+    tag: string;
+  }
+  const [bulkQueue, setBulkQueue] = useState<BulkQueueItem[]>([]);
+  const [uploadingBulk, setUploadingBulk] = useState(false);
 
   // Email and Password Auth States
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -337,12 +358,23 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     e.preventDefault();
     if (!configForm) return;
     setSavingConfig(true);
+    setConfigSuccess('');
+    setConfigError('');
     try {
       await setDoc(doc(db, 'config', 'general'), configForm);
       if (onUpdateConfig) onUpdateConfig();
-      alert("Site Text and Contact Details saved successfully!");
-    } catch (err) {
-      console.error(err);
+      setConfigSuccess("Configuration and dynamic assets saved successfully!");
+      // Automatically dismiss the success indicator after 4 seconds
+      setTimeout(() => {
+        setConfigSuccess('');
+      }, 4000);
+    } catch (err: any) {
+      console.error("Configuration save failed:", err);
+      let errMsg = err.message || "Failed to save configuration details.";
+      if (err.code === "permission-denied" || errMsg.includes("permission-denied")) {
+        errMsg = "Permission denied: Insufficient privileges or image file uploads exceed Firestore limits (max 3MB per logo/splash image).";
+      }
+      setConfigError(errMsg);
     } finally {
       setSavingConfig(false);
     }
@@ -454,12 +486,38 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     e: React.ChangeEvent<HTMLInputElement>, 
     target: 'gallery' | 'logo' | 'splash1' | 'splash2' | 'splash3' | 'splash4'
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
       setUploaderError('');
-      const base64 = await convertFileToBase64(file);
       
+      if (target === 'gallery' && isBulkMode) {
+        const itemsToAppend: BulkQueueItem[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const base64 = await convertFileToBase64(file);
+            const friendlyName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+            itemsToAppend.push({
+              id: 'bulk-' + Math.random().toString(36).substring(2, 9),
+              name: file.name,
+              size: file.size,
+              base64,
+              title: friendlyName,
+              tag: 'GENERAL',
+            });
+          } catch (itemErr: any) {
+            setUploaderError(prev => prev ? prev + ' | ' + itemErr.message : itemErr.message);
+          }
+        }
+        setBulkQueue(prev => [...prev, ...itemsToAppend]);
+        e.target.value = ''; // Reset input selection
+        return;
+      }
+
+      // Single file fallback logic
+      const file = files[0];
+      const base64 = await convertFileToBase64(file);
       if (target === 'gallery') {
         setFilePreview(base64);
         setNewGalleryItem(prev => ({ ...prev, url: base64 }));
@@ -493,29 +551,105 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   // Drop event triggers
   const handleDrop = async (
     e: React.DragEvent, 
-    target: 'gallery' | 'logo', 
+    target: 'gallery' | 'logo' | 'splash1' | 'splash2' | 'splash3' | 'splash4', 
     stateSetter: React.Dispatch<React.SetStateAction<boolean>>
   ) => {
     e.preventDefault();
     e.stopPropagation();
     stateSetter(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      try {
-        setUploaderError('');
-        const base64 = await convertFileToBase64(file);
-        if (target === 'gallery') {
-          setFilePreview(base64);
-          setNewGalleryItem(prev => ({ ...prev, url: base64 }));
-        } else if (target === 'logo') {
-          if (configForm) {
-            setConfigForm(prev => prev ? ({ ...prev, logoUrl: base64 }) : null);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    
+    try {
+      setUploaderError('');
+      if (target === 'gallery' && isBulkMode) {
+        const itemsToAppend: BulkQueueItem[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const base64 = await convertFileToBase64(file);
+            const friendlyName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+            itemsToAppend.push({
+              id: 'bulk-' + Math.random().toString(36).substring(2, 9),
+              name: file.name,
+              size: file.size,
+              base64,
+              title: friendlyName,
+              tag: 'GENERAL',
+            });
+          } catch (itemErr: any) {
+            setUploaderError(prev => prev ? prev + ' | ' + itemErr.message : itemErr.message);
           }
         }
-      } catch (err: any) {
-        setUploaderError(err.message || 'Error parsing dropped image.');
+        setBulkQueue(prev => [...prev, ...itemsToAppend]);
+        return;
       }
+
+      // Single file drop logic
+      const file = files[0];
+      const base64 = await convertFileToBase64(file);
+      if (target === 'gallery') {
+        setFilePreview(base64);
+        setNewGalleryItem(prev => ({ ...prev, url: base64 }));
+      } else if (target === 'logo') {
+        if (configForm) {
+          setConfigForm(prev => prev ? ({ ...prev, logoUrl: base64 }) : null);
+        }
+      } else if (target.startsWith('splash')) {
+        const indexStr = target.replace('splash', '');
+        if (configForm) {
+          const key = `splashUrl${indexStr}` as keyof SiteConfigDocument;
+          setConfigForm(prev => prev ? ({ ...prev, [key]: base64 }) : null);
+        }
+      }
+    } catch (err: any) {
+      setUploaderError(err.message || 'Error parsing dropped image.');
+    }
+  };
+
+  // Process the entire concurrent upload batch queue using setDoc
+  const handleUploadBulkQueue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (bulkQueue.length === 0) return;
+    
+    setUploadingBulk(true);
+    setUploaderError('');
+    
+    const startOrder = gallery.length > 0 
+      ? Math.max(...gallery.map(g => g.order !== undefined ? g.order : 0)) 
+      : 0;
+      
+    try {
+      const uploadPromises = bulkQueue.map((item, index) => {
+        const gId = 'img-' + Math.random().toString(36).substring(2, 9);
+        const finalTitle = item.title.trim() || item.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        const finalTag = item.tag.trim() || 'GENERAL';
+        
+        return setDoc(doc(db, 'gallery', gId), {
+          id: gId,
+          url: item.base64,
+          title: finalTitle,
+          tag: finalTag,
+          span: 'md:col-span-1 md:row-span-1', // Default Standard square (1x1) preset
+          order: startOrder + index + 1
+        });
+      });
+
+      // Execute concurrent uploads to the storage/database
+      await Promise.all(uploadPromises);
+      
+      setBulkQueue([]);
+      if (onUpdateGallery) onUpdateGallery();
+    } catch (err: any) {
+      console.error("Bulk upload safety processing failed:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, 'gallery');
+      } catch (formattedErr: any) {
+        setUploaderError(formattedErr.message);
+      }
+    } finally {
+      setUploadingBulk(false);
     }
   };
 
@@ -874,6 +1008,18 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
 
                       <form onSubmit={handleSaveConfig} className="bg-white p-8 rounded-3xl border border-emerald/5 shadow-xl space-y-6">
                         
+                        {configSuccess && (
+                          <div className="bg-emerald/10 text-emerald text-xs px-4 py-3 rounded-xl font-bold flex items-center gap-2 select-none border border-emerald/20">
+                            ✨ {configSuccess}
+                          </div>
+                        )}
+
+                        {configError && (
+                          <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl font-semibold select-none border border-red-500/20">
+                            ⚠️ {configError}
+                          </div>
+                        )}
+
                         {/* Seeding utility indicator if db not populated */}
                         {!config && (
                           <div className="bg-terracotta/10 border border-terracotta/20 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
@@ -1043,13 +1189,22 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                               {/* Slide 1 */}
-                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
-                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 1 — Linen Bedroom</span>
+                              <div 
+                                onDragEnter={(e) => handleDrag(e, setSplash1DragActive)}
+                                onDragOver={(e) => handleDrag(e, setSplash1DragActive)}
+                                onDragLeave={(e) => handleDrag(e, setSplash1DragActive)}
+                                onDrop={(e) => handleDrop(e, 'splash1', setSplash1DragActive)}
+                                className={`border p-4 rounded-2xl flex flex-col gap-3 transition-colors ${splash1DragActive ? 'border-terracotta bg-terracotta/5 shadow-inner' : 'bg-cream/30 border-emerald/5'}`}
+                              >
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider flex justify-between">
+                                  <span>Slide 1 — Linen Bedroom</span>
+                                  {splash1DragActive && <span className="text-terracotta animate-pulse">Release file...</span>}
+                                </span>
                                 <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
                                   <img 
                                     src={configForm.splashUrl1 || img1} 
                                     alt="Splash 1" 
-                                    className="w-full h-full object-cover" 
+                                    className="w-full h-full object-cover animate-fade-in" 
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
@@ -1087,13 +1242,22 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                               </div>
 
                               {/* Slide 2 */}
-                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
-                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 2 — Sage Dining Room</span>
+                              <div 
+                                onDragEnter={(e) => handleDrag(e, setSplash2DragActive)}
+                                onDragOver={(e) => handleDrag(e, setSplash2DragActive)}
+                                onDragLeave={(e) => handleDrag(e, setSplash2DragActive)}
+                                onDrop={(e) => handleDrop(e, 'splash2', setSplash2DragActive)}
+                                className={`border p-4 rounded-2xl flex flex-col gap-3 transition-colors ${splash2DragActive ? 'border-terracotta bg-terracotta/5 shadow-inner' : 'bg-cream/30 border-emerald/5'}`}
+                              >
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider flex justify-between">
+                                  <span>Slide 2 — Sage Dining Room</span>
+                                  {splash2DragActive && <span className="text-terracotta animate-pulse">Release file...</span>}
+                                </span>
                                 <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
                                   <img 
                                     src={configForm.splashUrl2 || img2} 
                                     alt="Splash 2" 
-                                    className="w-full h-full object-cover" 
+                                    className="w-full h-full object-cover animate-fade-in" 
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
@@ -1131,13 +1295,22 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                               </div>
 
                               {/* Slide 3 */}
-                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
-                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 3 — Modern Home Office</span>
+                              <div 
+                                onDragEnter={(e) => handleDrag(e, setSplash3DragActive)}
+                                onDragOver={(e) => handleDrag(e, setSplash3DragActive)}
+                                onDragLeave={(e) => handleDrag(e, setSplash3DragActive)}
+                                onDrop={(e) => handleDrop(e, 'splash3', setSplash3DragActive)}
+                                className={`border p-4 rounded-2xl flex flex-col gap-3 transition-colors ${splash3DragActive ? 'border-terracotta bg-terracotta/5 shadow-inner' : 'bg-cream/30 border-emerald/5'}`}
+                              >
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider flex justify-between">
+                                  <span>Slide 3 — Modern Home Office</span>
+                                  {splash3DragActive && <span className="text-terracotta animate-pulse">Release file...</span>}
+                                </span>
                                 <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
                                   <img 
                                     src={configForm.splashUrl3 || img3} 
                                     alt="Splash 3" 
-                                    className="w-full h-full object-cover" 
+                                    className="w-full h-full object-cover animate-fade-in" 
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
@@ -1175,13 +1348,22 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                               </div>
 
                               {/* Slide 4 */}
-                              <div className="bg-cream/30 border border-emerald/5 p-4 rounded-2xl flex flex-col gap-3">
-                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider">Slide 4 — Open Kitchen</span>
+                              <div 
+                                onDragEnter={(e) => handleDrag(e, setSplash4DragActive)}
+                                onDragOver={(e) => handleDrag(e, setSplash4DragActive)}
+                                onDragLeave={(e) => handleDrag(e, setSplash4DragActive)}
+                                onDrop={(e) => handleDrop(e, 'splash4', setSplash4DragActive)}
+                                className={`border p-4 rounded-2xl flex flex-col gap-3 transition-colors ${splash4DragActive ? 'border-terracotta bg-terracotta/5 shadow-inner' : 'bg-cream/30 border-emerald/5'}`}
+                              >
+                                <span className="text-[10px] font-bold text-emerald uppercase tracking-wider flex justify-between">
+                                  <span>Slide 4 — Open Kitchen</span>
+                                  {splash4DragActive && <span className="text-terracotta animate-pulse">Release file...</span>}
+                                </span>
                                 <div className="relative w-full h-32 bg-emerald/5 rounded-xl overflow-hidden group">
                                   <img 
                                     src={configForm.splashUrl4 || img4} 
                                     alt="Splash 4" 
-                                    className="w-full h-full object-cover" 
+                                    className="w-full h-full object-cover animate-fade-in" 
                                     referrerPolicy="no-referrer"
                                   />
                                 </div>
@@ -1320,9 +1502,27 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
 
                       {/* ADD NEW GALLERY IMAGE BUBBLE */}
                       <div className="bg-white p-8 rounded-3xl border border-emerald/5 shadow-xl space-y-6">
-                        <div className="border-b border-emerald/5 pb-4">
-                          <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Add Image to Gallery</h3>
-                          <p className="text-[10px] text-emerald/50 mt-1">Select or drop an image file (JPEG, PNG, WebP) to upload directly, or paste a secure link below.</p>
+                        <div className="border-b border-emerald/5 pb-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                          <div>
+                            <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Add Image to Gallery</h3>
+                            <p className="text-[10px] text-emerald/50 mt-1">Select or drop image files (JPEG, PNG, WebP) to upload.</p>
+                          </div>
+                          
+                          {/* Premium Bulk Upload Toggle */}
+                          <div className="flex items-center gap-3 self-start sm:self-center select-none bg-cream px-3 py-1.5 rounded-2xl border border-emerald/5">
+                            <span className="text-[10px] font-bold text-emerald/60 uppercase">Bulk Upload Mode</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsBulkMode(!isBulkMode);
+                                setBulkQueue([]);
+                                setFilePreview('');
+                              }}
+                              className={`relative w-10 h-6 rounded-full transition-colors flex items-center p-0.5 cursor-pointer ${isBulkMode ? 'bg-emerald' : 'bg-emerald/20'}`}
+                            >
+                              <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-all duration-350 ${isBulkMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                          </div>
                         </div>
 
                         {uploaderError && (
@@ -1331,119 +1531,249 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* File Drag / Drop Box */}
-                          <div 
-                            onDragEnter={(e) => handleDrag(e, setDragActive)}
-                            onDragOver={(e) => handleDrag(e, setDragActive)}
-                            onDragLeave={(e) => handleDrag(e, setDragActive)}
-                            onDrop={(e) => handleDrop(e, 'gallery', setDragActive)}
-                            className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all flex flex-col items-center justify-center minimum-h-[160px] ${dragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 hover:border-emerald/35 bg-cream/20'}`}
-                          >
-                            {filePreview ? (
-                              <div className="relative w-full max-w-[200px] aspect-video bg-emerald/5 rounded-xl overflow-hidden group">
-                                <img src={filePreview} alt="Selected file preview" className="w-full h-full object-cover" />
-                                <button 
-                                  type="button" 
-                                  onClick={() => {
-                                    setFilePreview('');
-                                    setNewGalleryItem(prev => ({ ...prev, url: '' }));
-                                  }}
-                                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-cream uppercase cursor-pointer"
-                                >
-                                  Remove Image
-                                </button>
+                        {!isBulkMode ? (
+                          /* SINGLE MODE UPLOAD */
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* File Drag / Drop Box */}
+                            <div 
+                              onDragEnter={(e) => handleDrag(e, setDragActive)}
+                              onDragOver={(e) => handleDrag(e, setDragActive)}
+                              onDragLeave={(e) => handleDrag(e, setDragActive)}
+                              onDrop={(e) => handleDrop(e, 'gallery', setDragActive)}
+                              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all flex flex-col items-center justify-center minimum-h-[160px] ${dragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 hover:border-emerald/35 bg-cream/20'}`}
+                            >
+                              {filePreview ? (
+                                <div className="relative w-full max-w-[200px] aspect-video bg-emerald/5 rounded-xl overflow-hidden group">
+                                  <img src={filePreview} alt="Selected file preview" className="w-full h-full object-cover" />
+                                  <button 
+                                    type="button" 
+                                    onClick={() => {
+                                      setFilePreview('');
+                                      setNewGalleryItem(prev => ({ ...prev, url: '' }));
+                                    }}
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-cream uppercase cursor-pointer"
+                                  >
+                                    Remove Image
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <UploadCloud size={24} className="text-emerald/40 mx-auto" />
+                                  <p className="text-[11px] font-bold text-emerald">Drag and drop file here</p>
+                                  <p className="text-[9px] text-emerald/50">Supports JPEG, PNG, or WebP (max 1.5MB)</p>
+                                  <label htmlFor="gallery-file-picker" className="bg-emerald text-cream px-3 py-1.5 rounded-lg text-[9px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-2 inline-block">
+                                    Browse Image File
+                                  </label>
+                                  <input 
+                                    type="file" 
+                                    id="gallery-file-picker" 
+                                    accept="image/png, image/jpeg, image/webp" 
+                                    className="hidden" 
+                                    onChange={(e) => handleFileUploadChange(e, 'gallery')} 
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Fallback Paste Link & Metadata Form */}
+                            <form onSubmit={handleCreateGalleryItem} className="space-y-4">
+                              <div>
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Image URL Address (Optional Fallback)</span>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald/30"><Link2 size={12} /></span>
+                                  <input 
+                                    type="text"
+                                    value={newGalleryItem.url}
+                                    onChange={(e) => {
+                                      setNewGalleryItem({ ...newGalleryItem, url: e.target.value });
+                                      if (e.target.value && !e.target.value.startsWith('data:')) {
+                                        setFilePreview(''); // URL takes precedence
+                                      }
+                                    }}
+                                    placeholder="Paste secure direct photo web link..."
+                                    className="w-full bg-cream rounded-xl pl-9 pr-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
+                                  />
+                                </div>
                               </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <UploadCloud size={24} className="text-emerald/40 mx-auto" />
-                                <p className="text-[11px] font-bold text-emerald">Drag and drop file here</p>
-                                <p className="text-[9px] text-emerald/50">Supports JPEG, PNG, or WebP (max 1.5MB)</p>
-                                <label htmlFor="gallery-file-picker" className="bg-emerald text-cream px-3 py-1.5 rounded-lg text-[9px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-2 inline-block">
-                                  Browse Image File
-                                </label>
-                                <input 
-                                  type="file" 
-                                  id="gallery-file-picker" 
-                                  accept="image/png, image/jpeg, image/webp" 
-                                  className="hidden" 
-                                  onChange={(e) => handleFileUploadChange(e, 'gallery')} 
-                                />
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Project Name</span>
+                                  <input 
+                                    type="text"
+                                    value={newGalleryItem.title}
+                                    onChange={(e) => setNewGalleryItem({ ...newGalleryItem, title: e.target.value })}
+                                    placeholder="e.g. Linen bedroom"
+                                    className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Category Tag</span>
+                                  <select 
+                                    value={newGalleryItem.tag}
+                                    onChange={(e) => setNewGalleryItem({ ...newGalleryItem, tag: e.target.value })}
+                                    className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
+                                  >
+                                    <option value="RESIDENTIAL">RESIDENTIAL</option>
+                                    <option value="WORKSPACE">WORKSPACE</option>
+                                    <option value="STYLING">STYLING</option>
+                                    <option value="CONCEPT">CONCEPT</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div>
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Visual Layout Span Grid Configuration</span>
+                                <select 
+                                  value={newGalleryItem.span}
+                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, span: e.target.value })}
+                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
+                                >
+                                  <option value="md:col-span-1 md:row-span-1">Standard square tile (1x1)</option>
+                                  <option value="md:col-span-1 md:row-span-2">Portrait tall accent (1x2)</option>
+                                  <option value="md:col-span-2 md:row-span-1">Landscape wide panorama (2x1)</option>
+                                  <option value="md:col-span-2 md:row-span-2">Epic grand presentation (2x2)</option>
+                                </select>
+                              </div>
+
+                              <button 
+                                type="submit"
+                                disabled={!newGalleryItem.url}
+                                className="w-full bg-emerald text-cream py-3.5 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <Plus size={14} /> Add Project Image
+                              </button>
+                            </form>
+                          </div>
+                        ) : (
+                          /* BULK MODE UPLOAD */
+                          <div className="space-y-6">
+                            {/* Extensive Dropzone */}
+                            <div 
+                              onDragEnter={(e) => handleDrag(e, setDragActive)}
+                              onDragOver={(e) => handleDrag(e, setDragActive)}
+                              onDragLeave={(e) => handleDrag(e, setDragActive)}
+                              onDrop={(e) => handleDrop(e, 'gallery', setDragActive)}
+                              className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all flex flex-col items-center justify-center min-h-[180px] ${dragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 hover:border-emerald/30 bg-cream/15'}`}
+                            >
+                              <UploadCloud size={32} className="text-emerald/40 mx-auto" />
+                              <h4 className="text-sm font-bold text-emerald mt-2">Drag & drop multiple image files here</h4>
+                              <p className="text-[10px] text-emerald/50 mt-1 max-w-md mx-auto">
+                                Holds support for multiple high-res JPEGs, PNGs, and WebPs. 
+                                Images automatically assign to standard 1x1 configuration grid.
+                              </p>
+                              
+                              <label htmlFor="bulk-file-picker" className="bg-emerald text-cream px-4 py-2 rounded-xl text-[10px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-4 inline-block shadow-md">
+                                Browse Image files
+                              </label>
+                              <input 
+                                type="file" 
+                                id="bulk-file-picker" 
+                                accept="image/png, image/jpeg, image/webp" 
+                                className="hidden" 
+                                multiple
+                                onChange={(e) => handleFileUploadChange(e, 'gallery')} 
+                              />
+                            </div>
+
+                            {/* Queued Items List */}
+                            {bulkQueue.length > 0 && (
+                              <div className="border border-emerald/5 rounded-3xl bg-cream/20 p-6 space-y-4">
+                                <div className="flex justify-between items-center pb-2 border-b border-emerald/5">
+                                  <h4 className="text-xs font-bold text-emerald tracking-wide uppercase">Batch Queue • {bulkQueue.length} files selected</h4>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setBulkQueue([])}
+                                    className="text-[9px] font-bold text-red-500 uppercase hover:underline"
+                                  >
+                                    Reset Queue
+                                  </button>
+                                </div>
+
+                                <div className="max-h-[300px] overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                                  {bulkQueue.map((item, qIdx) => (
+                                    <div key={item.id} className="bg-white p-3.5 rounded-2xl border border-emerald/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-emerald/5 shrink-0">
+                                          <img src={item.base64} alt="Thumb" className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="min-w-0 flex-1 sm:max-w-xs">
+                                          <p className="text-[10px] font-mono text-emerald/40 truncate">{item.name}</p>
+                                          <p className="text-[9px] text-emerald/30 font-semibold md:block">{(item.size / 1024).toFixed(0)} KB</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:flex-1">
+                                        {/* Editable title input field */}
+                                        <div>
+                                          <span className="text-[8px] text-emerald/40 uppercase font-bold block mb-0.5">Project Name Placeholder</span>
+                                          <input 
+                                            type="text"
+                                            value={item.title}
+                                            onChange={(e) => {
+                                              const updated = [...bulkQueue];
+                                              updated[qIdx].title = e.target.value;
+                                              setBulkQueue(updated);
+                                            }}
+                                            placeholder="Assign name..."
+                                            className="w-full bg-cream rounded-lg px-2.5 py-1.5 outline-none border border-emerald/5 text-[11px] text-emerald font-semibold"
+                                          />
+                                        </div>
+
+                                        {/* Editable Tag category */}
+                                        <div>
+                                          <span className="text-[8px] text-emerald/40 uppercase font-bold block mb-0.5">Category Tag</span>
+                                          <select 
+                                            value={item.tag}
+                                            onChange={(e) => {
+                                              const updated = [...bulkQueue];
+                                              updated[qIdx].tag = e.target.value;
+                                              setBulkQueue(updated);
+                                            }}
+                                            className="w-full bg-cream rounded-lg px-2 py-1 outline-none border border-emerald/5 text-[11px] text-emerald font-bold"
+                                          >
+                                            <option value="GENERAL">GENERAL</option>
+                                            <option value="RESIDENTIAL">RESIDENTIAL</option>
+                                            <option value="WORKSPACE">WORKSPACE</option>
+                                            <option value="STYLING">STYLING</option>
+                                            <option value="CONCEPT">CONCEPT</option>
+                                          </select>
+                                        </div>
+                                      </div>
+
+                                      <button 
+                                        type="button"
+                                        onClick={() => setBulkQueue(prev => prev.filter(q => q.id !== item.id))}
+                                        className="p-2 text-emerald/40 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all cursor-pointer block shrink-0 self-end sm:self-center"
+                                        title="Remove file"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <button 
+                                  type="button"
+                                  onClick={handleUploadBulkQueue}
+                                  disabled={uploadingBulk}
+                                  className="w-full bg-emerald text-cream py-3.5 rounded-2xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                                >
+                                  {uploadingBulk ? (
+                                    <>
+                                      <Hourglass size={14} className="animate-spin" /> Uploading Batch ({bulkQueue.length} files)...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus size={14} /> Add {bulkQueue.length} Project Images
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             )}
                           </div>
-
-                          {/* Fallback Paste Link & Metadata Form */}
-                          <form onSubmit={handleCreateGalleryItem} className="space-y-4">
-                            <div>
-                              <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Image URL Address (Optional Fallback)</span>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald/30"><Link2 size={12} /></span>
-                                <input 
-                                  type="text"
-                                  value={newGalleryItem.url}
-                                  onChange={(e) => {
-                                    setNewGalleryItem({ ...newGalleryItem, url: e.target.value });
-                                    if (e.target.value && !e.target.value.startsWith('data:')) {
-                                      setFilePreview(''); // URL takes precedence
-                                    }
-                                  }}
-                                  placeholder="Paste secure direct photo web link..."
-                                  className="w-full bg-cream rounded-xl pl-9 pr-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Project Name</span>
-                                <input 
-                                  type="text"
-                                  value={newGalleryItem.title}
-                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, title: e.target.value })}
-                                  placeholder="e.g. Linen bedroom"
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Category Tag</span>
-                                <select 
-                                  value={newGalleryItem.tag}
-                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, tag: e.target.value })}
-                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
-                                >
-                                  <option value="RESIDENTIAL">RESIDENTIAL</option>
-                                  <option value="WORKSPACE">WORKSPACE</option>
-                                  <option value="STYLING">STYLING</option>
-                                  <option value="CONCEPT">CONCEPT</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Visual Layout Span Grid Configuration</span>
-                              <select 
-                                value={newGalleryItem.span}
-                                  onChange={(e) => setNewGalleryItem({ ...newGalleryItem, span: e.target.value })}
-                                className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-bold"
-                              >
-                                <option value="md:col-span-1 md:row-span-1">Standard square tile (1x1)</option>
-                                <option value="md:col-span-1 md:row-span-2">Portrait tall accent (1x2)</option>
-                                <option value="md:col-span-2 md:row-span-1">Landscape wide panorama (2x1)</option>
-                                <option value="md:col-span-2 md:row-span-2">Epic grand presentation (2x2)</option>
-                              </select>
-                            </div>
-
-                            <button 
-                              type="submit"
-                              disabled={!newGalleryItem.url}
-                              className="w-full bg-emerald text-cream py-3.5 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <Plus size={14} /> Add Project Image
-                            </button>
-                          </form>
-                        </div>
+                        )}
                       </div>
 
                       {/* CURRENT GALLERY TILES LIST */}
