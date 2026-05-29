@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import logoImg from '../assets/images/business_logo_png_1779092570942.png';
 
 interface LogoProps {
   className?: string;
@@ -27,29 +26,51 @@ export function Logo({ className = '', size = 'md' }: LogoProps) {
     return () => unsub();
   }, []);
 
-  const sizes = {
-    sm: 'h-16 md:h-18',
-    md: 'h-24 md:h-28',
-    lg: 'h-36 md:h-44',
-    xl: 'h-48 md:h-56'
+  const imgSizes = {
+    sm: 'h-12 md:h-14',
+    md: 'h-18 md:h-22',
+    lg: 'h-28 md:h-32',
+    xl: 'h-40 md:h-48'
   };
 
-  const currentSizeClass = sizes[size];
-  const urlToRender = logoUrl || logoImg;
+  const textSizes = {
+    sm: 'text-sm md:text-base tracking-[0.15em]',
+    md: 'text-lg md:text-xl tracking-[0.2em]',
+    lg: 'text-2xl md:text-3xl tracking-[0.25em]',
+    xl: 'text-3xl md:text-4xl tracking-[0.3em]'
+  };
 
+  if (logoUrl) {
+    return (
+      <div className={`flex flex-col items-center select-none ${className}`}>
+        <motion.img 
+          src={logoUrl} 
+          alt="Em-erald Interiors Logo"
+          className={`${imgSizes[size]} object-contain`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          key={logoUrl}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
+  // Fallback to elegant typographic branding since the pre-loaded image is removed
   return (
     <div className={`flex flex-col items-center select-none ${className}`}>
-      <motion.img 
-        src={urlToRender} 
-        alt="Em-erald Interiors Logo"
-        className={`${currentSizeClass} object-contain mix-blend-multiply`}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.8 }}
-        key={urlToRender}
-        referrerPolicy="no-referrer"
-      />
+      <motion.div 
+        className={`${textSizes[size]} font-serif text-emerald uppercase font-bold flex items-center gap-1`}
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <span>Em</span>
+        <span className="text-terracotta italic font-normal lowercase">-erald</span>
+      </motion.div>
     </div>
   );
 }
+
 

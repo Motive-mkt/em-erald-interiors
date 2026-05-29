@@ -126,6 +126,13 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     return () => unsub();
   }, []);
 
+  // Auto-direct to the first dashboard tab after sign-up or sign-in
+  useEffect(() => {
+    if (currentUser?.uid && currentUser?.approved) {
+      setActiveTab('messages');
+    }
+  }, [currentUser?.uid, currentUser?.approved]);
+
   // Listen to Firestore updates if user is authenticated and approved
   useEffect(() => {
     if (!currentUser || !currentUser.approved) return;
