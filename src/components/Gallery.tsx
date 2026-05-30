@@ -84,10 +84,12 @@ export function Gallery({ items }: GalleryProps) {
                 />
                 
                 {/* Minimal Overlay with project titles */}
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald/80 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 select-none pointer-events-none">
-                  <span className="text-cream/50 text-[8px] font-bold tracking-widest uppercase mb-1">{item.tag || 'PORTFOLIO'}</span>
-                  <p className="text-cream text-md font-bold">{item.title || 'Curated Space'}</p>
-                </div>
+                {!(item.url.startsWith('http') || item.url.startsWith('data:')) && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-emerald/80 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 select-none pointer-events-none">
+                    <span className="text-cream/50 text-[8px] font-bold tracking-widest uppercase mb-1">{item.tag || 'PORTFOLIO'}</span>
+                    <p className="text-cream text-md font-bold">{item.title || 'Curated Space'}</p>
+                  </div>
+                )}
               </motion.div>
             );
           })}

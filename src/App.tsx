@@ -22,7 +22,7 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_GALLERY
 } from './lib/firebase';
-import { onSnapshot, doc, collection, deleteDoc } from 'firebase/firestore';
+import { onSnapshot, doc, collection, deleteDoc, updateDoc } from 'firebase/firestore';
 
 function AppRoutes() {
   const navigate = useNavigate();
@@ -39,7 +39,24 @@ function AppRoutes() {
     // 1. Listen config
     const unsubConfig = onSnapshot(doc(db, "config", "general"), (snap) => {
       if (snap.exists()) {
-        setConfig(snap.data() as SiteConfigDocument);
+        const data = snap.data() as SiteConfigDocument;
+        setConfig(data);
+        
+        // One-time check to clear any pre-loaded legacy logo from the database
+        if (localStorage.getItem('emerald_logo_cleared_v2') !== 'true') {
+          if (data.logoUrl) {
+            updateDoc(doc(db, "config", "general"), { logoUrl: "" })
+              .then(() => {
+                console.log("One-time cleanup: Cleared remote legacy logo URL so the owner can configure it themselves.");
+                localStorage.setItem('emerald_logo_cleared_v2', 'true');
+              })
+              .catch((err) => {
+                console.error("Failed to clear remote legacy logo:", err);
+              });
+          } else {
+            localStorage.setItem('emerald_logo_cleared_v2', 'true');
+          }
+        }
       } else {
         setConfig(DEFAULT_CONFIG);
       }
