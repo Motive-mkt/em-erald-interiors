@@ -118,6 +118,21 @@ export interface SiteConfigDocument {
   splashUrl2?: string;
   splashUrl3?: string;
   splashUrl4?: string;
+  servicesSubtitle?: string;
+  servicesTitleLine1?: string;
+  servicesTitleItalic?: string;
+  servicesParagraph?: string;
+  gallerySubtitle?: string;
+  galleryTitleLine1?: string;
+  galleryTitleItalic?: string;
+  galleryParagraph?: string;
+  testimonialsSubtitle?: string;
+  testimonialsTitleLine1?: string;
+  testimonialsTitleLine2?: string;
+  contactSubtitle?: string;
+  contactTitleLine1?: string;
+  contactTitleItalic?: string;
+  contactParagraph?: string;
 }
 
 // Default Configuration and Seeding elements
@@ -134,7 +149,22 @@ export const DEFAULT_CONFIG: SiteConfigDocument = {
   splashUrl1: "",
   splashUrl2: "",
   splashUrl3: "",
-  splashUrl4: ""
+  splashUrl4: "",
+  servicesSubtitle: "Our Services",
+  servicesTitleLine1: "Timeless craft,",
+  servicesTitleItalic: "tailored for you.",
+  servicesParagraph: "Click on any service option to pre-arrange a custom inquiry loop inside our project intake desk below.",
+  gallerySubtitle: "Selected Work",
+  galleryTitleLine1: "Spaces with a",
+  galleryTitleItalic: "soul.",
+  galleryParagraph: "A glimpse of recent residential and commercial projects — designed to feel timeless, personal, and entirely yours.",
+  testimonialsSubtitle: "Kind Words",
+  testimonialsTitleLine1: "Loved by the people",
+  testimonialsTitleLine2: "we design for.",
+  contactSubtitle: "Ready when you are",
+  contactTitleLine1: "Let's design a space that",
+  contactTitleItalic: "finally feels like home.",
+  contactParagraph: "Whether you're styling a single room or transforming a whole property — we'd love to hear about it."
 };
 
 export const DEFAULT_SERVICES: ServiceDocument[] = [

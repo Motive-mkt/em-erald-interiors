@@ -118,15 +118,19 @@ function AppRoutes() {
             
             <div id="main-content">
               <Services 
+                config={config}
                 services={services} 
                 onSelectService={(serviceTitle) => setSelectedService(serviceTitle)} 
               />
               
               <Gallery 
+                config={config}
                 items={gallery} 
               />
               
-              <Testimonials />
+              <Testimonials 
+                config={config}
+              />
               
               <Contact 
                 config={config}

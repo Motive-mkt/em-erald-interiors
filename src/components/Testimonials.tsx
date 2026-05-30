@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Star } from 'lucide-react';
+import { SiteConfigDocument } from '../lib/firebase';
 
 const TESTIMONIALS = [
   {
@@ -29,7 +30,7 @@ const TESTIMONIALS = [
   }
 ];
 
-export function Testimonials() {
+export function Testimonials({ config }: { config: SiteConfigDocument | null }) {
   return (
     <section id="reviews" className="py-20 md:py-32 px-4 md:px-12 lg:px-24 bg-cream">
       <div className="max-w-7xl mx-auto">
@@ -40,11 +41,11 @@ export function Testimonials() {
            className="mb-16 md:mb-20 text-center"
         >
           <span className="text-emerald/40 font-medium tracking-[0.2em] text-[8px] md:text-[10px] uppercase block mb-6">
-            Kind Words
+            {config?.testimonialsSubtitle || "Kind Words"}
           </span>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-serif text-emerald mb-8 leading-tight">
-            Loved by the people <br />
-            we design for.
+            {config?.testimonialsTitleLine1 || "Loved by the people"} <br />
+            {config?.testimonialsTitleLine2 || "we design for."}
           </h2>
           <div className="flex flex-col items-center gap-4">
             <div className="flex gap-1 text-terracotta">

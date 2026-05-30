@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Sparkles, Layout, Search, Droplet, Lightbulb, Palette, HelpCircle } from 'lucide-react';
-import { ServiceDocument } from '../lib/firebase';
+import { ServiceDocument, SiteConfigDocument } from '../lib/firebase';
 
 const ICONS_MAP: Record<string, any> = {
   Sparkles,
@@ -12,11 +12,12 @@ const ICONS_MAP: Record<string, any> = {
 };
 
 interface ServicesProps {
+  config: SiteConfigDocument | null;
   services: ServiceDocument[];
   onSelectService: (serviceTitle: string) => void;
 }
 
-export function Services({ services, onSelectService }: ServicesProps) {
+export function Services({ config, services, onSelectService }: ServicesProps) {
   
   const handleServiceClick = (title: string) => {
     onSelectService(title);
@@ -33,14 +34,14 @@ export function Services({ services, onSelectService }: ServicesProps) {
           className="mb-16 md:mb-20 text-left"
         >
           <span className="text-emerald/40 font-medium tracking-[0.2em] text-[8px] md:text-[10px] uppercase block mb-6">
-            Our Services
+            {config?.servicesSubtitle || "Our Services"}
           </span>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-serif text-emerald leading-tight mb-8">
-            Timeless craft, <br />
-            <span className="italic text-terracotta">tailored for you.</span>
+            {config?.servicesTitleLine1 || "Timeless craft,"} <br />
+            <span className="italic text-terracotta">{config?.servicesTitleItalic || "tailored for you."}</span>
           </h2>
           <p className="text-emerald/60 max-w-xl text-base md:text-lg leading-relaxed">
-            Click on any service option to pre-arrange a custom inquiry loop inside our project intake desk below.
+            {config?.servicesParagraph || "Click on any service option to pre-arrange a custom inquiry loop inside our project intake desk below."}
           </p>
         </motion.div>
 

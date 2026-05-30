@@ -39,6 +39,7 @@ import {
   ServiceDocument, 
   GalleryDocument, 
   SiteConfigDocument,
+  DEFAULT_CONFIG,
   seedInitialData,
   OperationType,
   handleFirestoreError
@@ -220,7 +221,13 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
       if (snap.exists()) {
         const cData = snap.data() as SiteConfigDocument;
         setConfig(cData);
-        setConfigForm(cData);
+        setConfigForm(prev => {
+          if (!prev) return cData;
+          return prev;
+        });
+      } else {
+        setConfig(DEFAULT_CONFIG);
+        setConfigForm(prev => prev || DEFAULT_CONFIG);
       }
     });
 
@@ -1116,6 +1123,177 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                               onChange={(e) => setConfigForm({...configForm, contactOpeningHours: e.target.value})}
                               className="w-full bg-cream rounded-xl px-4 py-3 outline-none focus:ring-1 focus:ring-terracotta text-sm text-emerald font-semibold"
                             />
+                          </div>
+
+                          {/* OTHER SITE TEXT DETAILS */}
+                          <div className="md:col-span-2 pt-6 border-t border-emerald/5 space-y-4">
+                            <h3 className="text-sm font-bold text-emerald tracking-wider uppercase">Section Header Text Customization</h3>
+                            <p className="text-[10px] text-emerald/50">Modify the subtitles, headings, and descriptions for each main block of the website page.</p>
+                            
+                            <div className="space-y-6">
+                              {/* SERVICES SECTION TEXTS */}
+                              <div className="bg-cream/10 p-5 rounded-2xl border border-emerald/5 space-y-4">
+                                <h4 className="text-xs font-bold text-emerald tracking-wide uppercase">Services Section</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Subtitle (e.g. Our Services)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.servicesSubtitle || ''}
+                                      onChange={(e) => setConfigForm({...configForm, servicesSubtitle: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Line 1</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.servicesTitleLine1 || ''}
+                                      onChange={(e) => setConfigForm({...configForm, servicesTitleLine1: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Italic Focus</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.servicesTitleItalic || ''}
+                                      onChange={(e) => setConfigForm({...configForm, servicesTitleItalic: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Section Description Paragraph</label>
+                                    <textarea 
+                                      rows={2}
+                                      value={configForm.servicesParagraph || ''}
+                                      onChange={(e) => setConfigForm({...configForm, servicesParagraph: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-medium resize-none leading-relaxed"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* GALLERY SECTION TEXTS */}
+                              <div className="bg-cream/10 p-5 rounded-2xl border border-emerald/5 space-y-4">
+                                <h4 className="text-xs font-bold text-emerald tracking-wide uppercase">Gallery Section</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Subtitle (e.g. Selected Work)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.gallerySubtitle || ''}
+                                      onChange={(e) => setConfigForm({...configForm, gallerySubtitle: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Line 1</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.galleryTitleLine1 || ''}
+                                      onChange={(e) => setConfigForm({...configForm, galleryTitleLine1: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Italic Focus (e.g. soul.)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.galleryTitleItalic || ''}
+                                      onChange={(e) => setConfigForm({...configForm, galleryTitleItalic: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Section Description Paragraph</label>
+                                    <textarea 
+                                      rows={2}
+                                      value={configForm.galleryParagraph || ''}
+                                      onChange={(e) => setConfigForm({...configForm, galleryParagraph: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-medium resize-none leading-relaxed"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* TESTIMONIALS SECTION TEXTS */}
+                              <div className="bg-cream/10 p-5 rounded-2xl border border-emerald/5 space-y-4">
+                                <h4 className="text-xs font-bold text-emerald tracking-wide uppercase">Testimonials Section</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Subtitle (e.g. Kind Words)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.testimonialsSubtitle || ''}
+                                      onChange={(e) => setConfigForm({...configForm, testimonialsSubtitle: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Line 1</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.testimonialsTitleLine1 || ''}
+                                      onChange={(e) => setConfigForm({...configForm, testimonialsTitleLine1: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Line 2 (e.g. we design for.)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.testimonialsTitleLine2 || ''}
+                                      onChange={(e) => setConfigForm({...configForm, testimonialsTitleLine2: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* CONTACT SECTION TEXTS */}
+                              <div className="bg-cream/10 p-5 rounded-2xl border border-emerald/5 space-y-4">
+                                <h4 className="text-xs font-bold text-emerald tracking-wide uppercase">Contact Section</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Subtitle (e.g. Ready when you are)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.contactSubtitle || ''}
+                                      onChange={(e) => setConfigForm({...configForm, contactSubtitle: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Line 1</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.contactTitleLine1 || ''}
+                                      onChange={(e) => setConfigForm({...configForm, contactTitleLine1: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Heading Italic Focus (e.g. finally feels like home.)</label>
+                                    <input 
+                                      type="text"
+                                      value={configForm.contactTitleItalic || ''}
+                                      onChange={(e) => setConfigForm({...configForm, contactTitleItalic: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-semibold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-bold text-emerald/60 uppercase block mb-1">Section Description Paragraph</label>
+                                    <textarea 
+                                      rows={2}
+                                      value={configForm.contactParagraph || ''}
+                                      onChange={(e) => setConfigForm({...configForm, contactParagraph: e.target.value})}
+                                      className="w-full bg-cream rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-terracotta text-xs text-emerald font-medium resize-none leading-relaxed"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Logo Settings Card Component */}

@@ -6,7 +6,7 @@ import img2 from '../assets/images/sage_dining_room_1779090886447.png';
 import img3 from '../assets/images/modern_home_office_1779090902647.png';
 import img4 from '../assets/images/reading_nook_1779090922940.png';
 import img5 from '../assets/images/kitchen_styling_1779090940250.png';
-import { GalleryDocument } from '../lib/firebase';
+import { GalleryDocument, SiteConfigDocument } from '../lib/firebase';
 
 // Translation map from bootstrapped names to direct compiled asset static bundle paths
 export const LOCAL_IMAGES_MAP: Record<string, string> = {
@@ -18,10 +18,11 @@ export const LOCAL_IMAGES_MAP: Record<string, string> = {
 };
 
 interface GalleryProps {
+  config: SiteConfigDocument | null;
   items: GalleryDocument[];
 }
 
-export function Gallery({ items }: GalleryProps) {
+export function Gallery({ config, items }: GalleryProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Default display is limited to 6 of high quality. If we have more, they are toggled!
@@ -46,14 +47,14 @@ export function Gallery({ items }: GalleryProps) {
         >
           <div>
             <span className="text-emerald/40 font-medium tracking-[0.2em] text-[8px] md:text-[10px] uppercase block mb-6">
-              Selected Work
+              {config?.gallerySubtitle || "Selected Work"}
             </span>
             <h2 className="text-4xl sm:text-6xl md:text-7xl font-serif text-emerald leading-tight">
-              Spaces with a <span className="italic text-terracotta">soul.</span>
+              {config?.galleryTitleLine1 || "Spaces with a"} <span className="italic text-terracotta">{config?.galleryTitleItalic || "soul."}</span>
             </h2>
           </div>
           <p className="text-emerald/60 max-w-sm text-sm leading-relaxed mb-4 font-semibold">
-            A glimpse of recent residential and commercial projects — designed to feel timeless, personal, and entirely yours.
+            {config?.galleryParagraph || "A glimpse of recent residential and commercial projects — designed to feel timeless, personal, and entirely yours."}
           </p>
         </motion.div>
 

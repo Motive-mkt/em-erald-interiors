@@ -75,13 +75,13 @@ export function Contact({ config, services, selectedService, setSelectedService 
           {/* Left Side Pitch */}
           <div className="lg:w-1/2 flex flex-col justify-center relative z-10 select-none">
             <span className="text-white/40 font-medium tracking-[0.2em] text-[8px] md:text-[10px] uppercase block mb-8">
-              Ready when you are
+              {config?.contactSubtitle || "Ready when you are"}
             </span>
             <h2 className="text-4xl sm:text-6xl lg:text-7xl font-serif text-cream leading-tight mb-8">
-              Let's design a space that <span className="italic text-white/60">finally feels like home.</span>
+              {config?.contactTitleLine1 || "Let's design a space that"} <span className="italic text-white/60">{config?.contactTitleItalic || "finally feels like home."}</span>
             </h2>
             <p className="text-cream/60 max-w-md text-base md:text-lg leading-relaxed mb-10 md:mb-12">
-              Whether you're styling a single room or transforming a whole property — we'd love to hear about it.
+              {config?.contactParagraph || "Whether you're styling a single room or transforming a whole property — we'd love to hear about it."}
             </p>
             
             <div className="space-y-6">
