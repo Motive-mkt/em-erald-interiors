@@ -10,21 +10,41 @@ interface LogoProps {
 }
 
 export function Logo({ className = '', size = 'md' }: LogoProps) {
-  const [logoUrl, setLogoUrl] = useState<string>('');
+  // Synchronously initialize the logo from the local cache to prevent delay/flicker
+  const [logoUrl, setLogoUrl] = useState<string>(() => {
+    try {
+      return localStorage.getItem('cached_emerald_logo_url') || '';
+    } catch {
+      return '';
+    }
+  });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "config", "general"), (snap) => {
+    const unsub = onSnapshot(doc(db, "site_config", "appearance"), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data && data.logoUrl) {
-          setLogoUrl(data.logoUrl);
-        } else {
-          setLogoUrl('');
+        if (data && data.logo_url !== logoUrl) {
+          const freshLogo = data.logo_url || '';
+          setLogoUrl(freshLogo);
+          try {
+            if (freshLogo) {
+              localStorage.setItem('cached_emerald_logo_url', freshLogo);
+            } else {
+              localStorage.removeItem('cached_emerald_logo_url');
+            }
+          } catch (e) {
+            console.error('Error writing logo to local storage:', e);
+          }
         }
+      } else {
+        setLogoUrl('');
+        try {
+          localStorage.removeItem('cached_emerald_logo_url');
+        } catch {}
       }
     });
     return () => unsub();
-  }, []);
+  }, [logoUrl]);
 
   const imgSizes = {
     sm: 'h-12 md:h-14',
@@ -33,42 +53,22 @@ export function Logo({ className = '', size = 'md' }: LogoProps) {
     xl: 'h-40 md:h-48'
   };
 
-  const textSizes = {
-    sm: 'text-sm md:text-base tracking-[0.15em]',
-    md: 'text-lg md:text-xl tracking-[0.2em]',
-    lg: 'text-2xl md:text-3xl tracking-[0.25em]',
-    xl: 'text-3xl md:text-4xl tracking-[0.3em]'
-  };
-
-  if (logoUrl) {
-    return (
-      <div className={`flex flex-col items-center select-none ${className}`}>
-        <motion.img 
-          src={logoUrl} 
-          alt="Em-erald Interiors Logo"
-          className={`${imgSizes[size]} object-contain`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          key={logoUrl}
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    );
+  if (!logoUrl) {
+    return null;
   }
 
-  // Fallback to elegant typographic branding since the pre-loaded image is removed
   return (
     <div className={`flex flex-col items-center select-none ${className}`}>
-      <motion.div 
-        className={`${textSizes[size]} font-serif text-emerald uppercase font-bold flex items-center gap-1`}
-        initial={{ opacity: 0, y: -5 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <span>Em</span>
-        <span className="text-terracotta italic font-normal lowercase">-erald</span>
-      </motion.div>
+      <motion.img 
+        src={logoUrl} 
+        alt="Logo"
+        className={`${imgSizes[size]} object-contain`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        key={logoUrl}
+        referrerPolicy="no-referrer"
+      />
     </div>
   );
 }

@@ -20,7 +20,10 @@ import {
   Hourglass,
   ChevronLeft,
   UploadCloud,
-  Link2
+  Link2,
+  Palette,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import img1 from '../assets/images/serene_bedroom_1779090868311.png';
 import img2 from '../assets/images/sage_dining_room_1779090886447.png';
@@ -42,7 +45,9 @@ import {
   DEFAULT_CONFIG,
   seedInitialData,
   OperationType,
-  handleFirestoreError
+  handleFirestoreError,
+  AppearanceDocument,
+  DEFAULT_APPEARANCE
 } from '../lib/firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -72,7 +77,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-  const [activeTab, setActiveTab] = useState<'messages' | 'config' | 'services' | 'gallery' | 'users'>('messages');
+  const [activeTab, setActiveTab] = useState<'messages' | 'config' | 'services' | 'gallery' | 'users' | 'appearance'>('messages');
 
   // Firestore States
   const [messages, setMessages] = useState<MessageDocument[]>([]);
@@ -80,16 +85,21 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const [services, setServices] = useState<ServiceDocument[]>([]);
   const [gallery, setGallery] = useState<GalleryDocument[]>([]);
   const [config, setConfig] = useState<SiteConfigDocument | null>(null);
+  const [appearance, setAppearance] = useState<AppearanceDocument | null>(null);
 
   // Form Management states
   const [configForm, setConfigForm] = useState<SiteConfigDocument | null>(null);
+  const [appearanceForm, setAppearanceForm] = useState<AppearanceDocument | null>(null);
   const [newService, setNewService] = useState({ title: '', desc: '', icon: 'Sparkles', order: 1 });
   const [newGalleryItem, setNewGalleryItem] = useState({ url: '', tag: 'RESIDENTIAL', title: '', span: 'md:col-span-1 md:row-span-1' });
 
   const [savingConfig, setSavingConfig] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [configSuccess, setConfigSuccess] = useState('');
   const [configError, setConfigError] = useState('');
+  const [appearanceSuccess, setAppearanceSuccess] = useState('');
+  const [appearanceError, setAppearanceError] = useState('');
 
   // Dynamic Image Upload & Interactive States
   const [uploaderError, setUploaderError] = useState('');
@@ -231,12 +241,28 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
       }
     });
 
+    // 6. Appearance Listener
+    const unsubAppearance = onSnapshot(doc(db, 'site_config', 'appearance'), (snap) => {
+      if (snap.exists()) {
+        const aData = snap.data() as AppearanceDocument;
+        setAppearance(aData);
+        setAppearanceForm(prev => {
+          if (!prev) return aData;
+          return prev;
+        });
+      } else {
+        setAppearance(DEFAULT_APPEARANCE);
+        setAppearanceForm(prev => prev || DEFAULT_APPEARANCE);
+      }
+    });
+
     return () => {
       unsubMessages();
       unsubUsers();
       unsubServices();
       unsubGallery();
       unsubConfig();
+      unsubAppearance();
     };
   }, [currentUser]);
 
@@ -385,6 +411,110 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     } finally {
       setSavingConfig(false);
     }
+  };
+
+  // Update appearance profile
+  const handleSaveAppearance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appearanceForm) return;
+    setSavingAppearance(true);
+    setAppearanceSuccess('');
+    setAppearanceError('');
+    try {
+      await setDoc(doc(db, 'site_config', 'appearance'), appearanceForm);
+      setAppearanceSuccess("Appearance settings saved successfully!");
+      // Automatically dismiss the success indicator after 4 seconds
+      setTimeout(() => {
+        setAppearanceSuccess('');
+      }, 4000);
+    } catch (err: any) {
+      console.error("Appearance save failed:", err);
+      let errMsg = err.message || "Failed to save appearance details.";
+      if (err.code === "permission-denied" || errMsg.includes("permission-denied")) {
+        errMsg = "Permission denied: Insufficient privileges or image file uploads exceed Firestore limits (max 3MB per logo/splash image).";
+      }
+      setAppearanceError(errMsg);
+    } finally {
+      setSavingAppearance(false);
+    }
+  };
+
+  const handleAppearanceLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    try {
+      setUploaderError('');
+      const file = files[0];
+      const base64 = await convertFileToBase64(file);
+      setAppearanceForm(prev => {
+        const text = prev?.logo_text || "Em-erald";
+        const splash = prev?.splash_images || [];
+        return {
+          logo_url: base64,
+          logo_text: text,
+          splash_images: splash
+        };
+      });
+    } catch (err: any) {
+      setUploaderError(err.message || 'Error processing selected logo image file.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleAppearanceSplashChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    try {
+      setUploaderError('');
+      const loadedImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const base64 = await convertFileToBase64(files[i]);
+        loadedImages.push(base64);
+      }
+      setAppearanceForm(prev => {
+        const text = prev?.logo_text || "Em-erald";
+        const logo = prev?.logo_url || "";
+        const splash = prev?.splash_images || [];
+        return {
+          logo_url: logo,
+          logo_text: text,
+          splash_images: [...splash, ...loadedImages]
+        };
+      });
+    } catch (err: any) {
+      setUploaderError(err.message || 'Error processing selected splash image file(s).');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteAppearanceSplash = (indexToDelete: number) => {
+    setAppearanceForm(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        splash_images: prev.splash_images.filter((_, idx) => idx !== indexToDelete)
+      };
+    });
+  };
+
+  const handleMoveAppearanceSplash = (index: number, direction: 'up' | 'down') => {
+    setAppearanceForm(prev => {
+      if (!prev) return null;
+      const images = [...prev.splash_images];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= images.length) return prev;
+      
+      const temp = images[index];
+      images[index] = images[targetIndex];
+      images[targetIndex] = temp;
+
+      return {
+        ...prev,
+        splash_images: images
+      };
+    });
   };
 
   // Create Service item
@@ -731,6 +861,12 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                       className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'gallery' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
                     >
                       <Image size={14} /> Gallery
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('appearance')}
+                      className={`w-auto md:w-full text-center md:text-left px-4 py-3 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 md:gap-3 transition-colors shrink-0 whitespace-nowrap ${activeTab === 'appearance' ? 'bg-cream text-emerald' : 'hover:bg-white/5'}`}
+                    >
+                      <Palette size={14} /> Appearance
                     </button>
                     {currentUser.role === 'owner' && (
                       <button 
@@ -1296,70 +1432,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                             </div>
                           </div>
 
-                          {/* Logo Settings Card Component */}
-                          <div className="md:col-span-2 bg-cream/30 p-6 rounded-2xl border border-emerald/5 space-y-4">
-                            <label className="text-xs font-bold text-emerald tracking-wide uppercase block">Dynamic Logo Customization</label>
-                            <p className="text-[10px] text-emerald/50">Upload a crisp PNG or vector SVG with transparency. You can also paste an external secure link below. Sits perfectly over any header background.</p>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                              {/* Logo Drag/Drop Area */}
-                              <div 
-                                onDragEnter={(e) => handleDrag(e, setLogoDragActive)}
-                                onDragOver={(e) => handleDrag(e, setLogoDragActive)}
-                                onDragLeave={(e) => handleDrag(e, setLogoDragActive)}
-                                onDrop={(e) => handleDrop(e, 'logo', setLogoDragActive)}
-                                className={`relative border-2 border-dashed rounded-2xl p-6 text-center transition-all ${logoDragActive ? 'border-terracotta bg-terracotta/5' : 'border-emerald/10 bg-white hover:border-emerald/30'}`}
-                              >
-                                {configForm.logoUrl ? (
-                                  <div className="flex flex-col items-center gap-3">
-                                    <div className="w-full h-16 rounded-xl bg-[linear-gradient(45deg,#ccc_25%,transparent_25%),linear-gradient(-45deg,#ccc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ccc_75%),linear-gradient(-45deg,transparent_75%,#ccc_75%)] bg-[size:10px_10px] bg-[position:0_0,0_5px,5px_-5px,-5px_0] bg-white flex items-center justify-center p-2 border border-emerald/5 overflow-hidden">
-                                      <img src={configForm.logoUrl} alt="Logo preview" className="h-full object-contain" referrerPolicy="no-referrer" />
-                                    </div>
-                                    <button 
-                                      type="button"
-                                      onClick={() => setConfigForm({...configForm, logoUrl: ''})}
-                                      className="text-[9px] font-bold text-red-500 uppercase hover:underline cursor-pointer"
-                                    >
-                                      Remove Logo (Text Fallback)
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col items-center gap-2">
-                                    <ShieldCheck size={20} className="text-emerald/40" />
-                                    <p className="text-[10px] font-bold text-emerald">Drag & drop logo file here</p>
-                                    <p className="text-[9px] text-emerald/50">Supports SVG or PNG</p>
-                                    <label htmlFor="logo-file-picker" className="bg-emerald text-cream px-3 py-1.5 rounded-lg text-[9px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-1">
-                                      Browse File
-                                    </label>
-                                    <input 
-                                      type="file" 
-                                      accept="image/png, image/svg+xml, image/jpeg, image/webp" 
-                                      id="logo-file-picker" 
-                                      className="hidden" 
-                                      onChange={(e) => handleFileUploadChange(e, 'logo')} 
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* URL Link Fallback Area */}
-                              <div className="space-y-3">
-                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Custom Logo Image URL</span>
-                                <input 
-                                  type="text"
-                                  value={configForm.logoUrl || ''}
-                                  onChange={(e) => setConfigForm({...configForm, logoUrl: e.target.value})}
-                                  placeholder="Or paste direct secure logo link..."
-                                  className="w-full bg-white rounded-xl px-4 py-3 outline-none border border-emerald/10 text-xs text-emerald font-semibold"
-                                />
-                                <div className="p-3 bg-white/50 rounded-xl border border-emerald/5">
-                                  <p className="text-[9px] text-emerald/50 leading-relaxed font-semibold">
-                                    💡 <strong className="text-emerald">Live Updates:</strong> Saving updates your branding immediately. Fallback typographic monogram logo activates if this field is empty.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          {/* Duplicate logo section removed. Site has a single unified logo in the Appearance settings tab. */}
 
                           <div className="md:col-span-2 pt-4 border-t border-emerald/5">
                             <h3 className="text-sm font-bold text-emerald tracking-wider uppercase mb-3">Splash Gate Slideshow</h3>
@@ -2110,6 +2183,190 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                         </div>
                       </div>
 
+                    </motion.div>
+                  )}
+
+                  {/* TAB 6: SITE APPEARANCE SECTION */}
+                  {activeTab === 'appearance' && appearanceForm && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8" id="admin-appearance-panel">
+                      <div>
+                        <h2 className="text-3xl font-serif text-emerald">Site Appearance</h2>
+                        <p className="text-emerald/50 text-xs font-semibold mt-1">Control visual branding, typography logos, and splash sliding gates.</p>
+                      </div>
+
+                      <form onSubmit={handleSaveAppearance} className="space-y-8">
+                        {appearanceSuccess && (
+                          <div className="bg-emerald/10 text-emerald text-xs px-4 py-3 rounded-xl font-bold border border-emerald/15" id="appearance-success-alert">
+                            ✓ {appearanceSuccess}
+                          </div>
+                        )}
+
+                        {appearanceError && (
+                          <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl font-semibold border border-red-500/15" id="appearance-error-alert">
+                            ⚠️ {appearanceError}
+                          </div>
+                        )}
+
+                        {/* SECTION A: LOGO BRANDING */}
+                        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-emerald/5 shadow-xl space-y-6">
+                          <div>
+                            <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Logo & Identity Branding</h3>
+                            <p className="text-[10px] text-emerald/50 mt-1">Configure your visual logo asset or set typographical fallbacks.</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Draggable Logo Asset Selection */}
+                            <div className="space-y-3">
+                              <span className="text-[10px] text-emerald/40 uppercase font-bold block">Dynamic Visual Logo Symbol</span>
+                              <div className="border border-emerald/5 bg-cream/10 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[140px] text-center relative overflow-hidden group">
+                                {appearanceForm.logo_url ? (
+                                  <div className="flex flex-col items-center space-y-2">
+                                    <img src={appearanceForm.logo_url} alt="Logo preview" className="h-16 object-contain" referrerPolicy="no-referrer" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setAppearanceForm(prev => prev ? { ...prev, logo_url: '' } : null)}
+                                      className="text-[9px] font-bold text-red-500 uppercase hover:underline cursor-pointer z-10"
+                                    >
+                                      Remove logo image
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <UploadCloud size={20} className="text-emerald/30 mx-auto" />
+                                    <p className="text-[10px] font-bold text-emerald">Drag & Drop or click to browse</p>
+                                    <p className="text-[8px] text-emerald/40">JPEG, PNG, WebP (max 1.5MB)</p>
+                                    <label htmlFor="appearance-logo-picker" className="bg-emerald text-cream px-3 py-1 rounded-lg text-[8px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors mt-2 inline-block">
+                                      Browse File
+                                    </label>
+                                    <input
+                                      type="file"
+                                      id="appearance-logo-picker"
+                                      accept="image/png, image/jpeg, image/webp"
+                                      className="hidden"
+                                      onChange={handleAppearanceLogoChange}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Typographical Brand Name Text Field */}
+                            <div className="space-y-4 justify-between flex flex-col">
+                              <div>
+                                <span className="text-[10px] text-emerald/40 uppercase font-bold block mb-1">Typographical Brand Text Fallback</span>
+                                <input
+                                  type="text"
+                                  value={appearanceForm.logo_text || ''}
+                                  onChange={(e) => setAppearanceForm(prev => prev ? { ...prev, logo_text: e.target.value } : null)}
+                                  placeholder="e.g. Em-erald"
+                                  className="w-full bg-cream rounded-xl px-4 py-3 outline-none border border-emerald/5 text-xs text-emerald font-semibold"
+                                  required
+                                />
+                                <p className="text-[9px] text-emerald/40 mt-1.5">
+                                  Displayed elegantly in serif display typography across headers, footers, and cards if no visual logo symbol is uploaded.
+                                </p>
+                              </div>
+
+                              <div className="bg-cream/15 p-4 rounded-2xl border border-emerald/5">
+                                <span className="text-[9px] text-emerald/40 uppercase font-bold block mb-1">Identity Preview</span>
+                                {appearanceForm.logo_url ? (
+                                  <img src={appearanceForm.logo_url} alt="Logo" className="h-8 object-contain" />
+                                ) : (
+                                  <div className="font-serif text-emerald font-bold text-base uppercase">
+                                    {appearanceForm.logo_text || 'Em-erald'}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* SECTION B: SPLASH SLIDES */}
+                        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-emerald/5 shadow-xl space-y-6">
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                            <div>
+                              <h3 className="text-sm font-bold text-emerald tracking-widest uppercase">Cinematic Splash Gate Showcase</h3>
+                              <p className="text-[10px] text-emerald/50 mt-1">Manage the sequence, addition, and ordering of homepage gate slide visuals.</p>
+                            </div>
+
+                            <label htmlFor="appearance-splash-picker" className="bg-emerald text-cream px-4 py-2 rounded-xl text-[10px] uppercase font-bold cursor-pointer hover:bg-emerald-soft transition-colors inline-block text-center shadow-md shrink-0">
+                              Add Slide Asset
+                            </label>
+                            <input
+                              type="file"
+                              id="appearance-splash-picker"
+                              accept="image/png, image/jpeg, image/webp"
+                              className="hidden"
+                              multiple
+                              onChange={handleAppearanceSplashChange}
+                            />
+                          </div>
+
+                          {/* Existing/Selected Splash Items */}
+                          {(appearanceForm.splash_images || []).length === 0 ? (
+                            <div className="bg-cream/20 border-2 border-dashed border-emerald/10 p-12 text-center rounded-2xl text-emerald/40 text-xs">
+                              <Image size={24} className="mx-auto text-emerald/20 mb-2" />
+                              No custom splash sliding gate images defined. Displaying default internal portfolio slides.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {appearanceForm.splash_images.map((img, idx) => (
+                                <div key={idx} className="bg-cream/25 p-3 rounded-2xl border border-emerald/5 flex flex-col justify-between gap-3 shadow-sm relative group">
+                                  <div className="aspect-video w-full rounded-lg overflow-hidden bg-emerald/5 relative">
+                                    <img src={img} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <span className="absolute top-2 left-2 bg-emerald/85 text-cream text-[8px] font-bold px-2 py-0.5 rounded-full select-none">
+                                      Slide {idx + 1}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2 mt-1">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={idx === 0}
+                                        onClick={() => handleMoveAppearanceSplash(idx, 'up')}
+                                        className="w-8 h-8 rounded-lg bg-white/60 hover:bg-white text-emerald flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-emerald/5"
+                                        title="Move index left"
+                                      >
+                                        <ChevronLeft size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={idx === appearanceForm.splash_images.length - 1}
+                                        onClick={() => handleMoveAppearanceSplash(idx, 'down')}
+                                        className="w-8 h-8 rounded-lg bg-white/60 hover:bg-white text-emerald flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-emerald/5"
+                                        title="Move index right"
+                                      >
+                                        <ChevronRight size={14} />
+                                      </button>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAppearanceSplash(idx)}
+                                      className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center cursor-pointer border border-red-500/5"
+                                      title="Delete slide"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* SAVING CONTROLLER BUTTON */}
+                        <button 
+                          type="submit"
+                          disabled={savingAppearance}
+                          className="w-full bg-emerald text-cream py-4 rounded-xl font-bold text-xs tracking-widest uppercase hover:bg-emerald-soft transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          id="btn-save-appearance"
+                        >
+                          <Save size={14} /> 
+                          {savingAppearance ? "Saving Appearance Config..." : "Save Appearance Settings"}
+                        </button>
+                      </form>
                     </motion.div>
                   )}
 

@@ -135,6 +135,18 @@ export interface SiteConfigDocument {
   contactParagraph?: string;
 }
 
+export interface AppearanceDocument {
+  logo_url: string;
+  logo_text: string;
+  splash_images: string[];
+}
+
+export const DEFAULT_APPEARANCE: AppearanceDocument = {
+  logo_url: "",
+  logo_text: "Em-erald",
+  splash_images: []
+};
+
 // Default Configuration and Seeding elements
 export const DEFAULT_CONFIG: SiteConfigDocument = {
   heroTitleLine1: "timeless interiors",
@@ -186,6 +198,13 @@ export async function seedInitialData() {
     const configSnap = await getDoc(configRef);
     if (!configSnap.exists()) {
       await setDoc(configRef, DEFAULT_CONFIG);
+    }
+
+    // 1.5. Appearance config
+    const appearanceRef = doc(db, "site_config", "appearance");
+    const appearanceSnap = await getDoc(appearanceRef);
+    if (!appearanceSnap.exists()) {
+      await setDoc(appearanceRef, DEFAULT_APPEARANCE);
     }
 
     // 2. Services
@@ -329,6 +348,16 @@ export async function fetchSiteConfig(): Promise<SiteConfigDocument> {
     return snap.data() as SiteConfigDocument;
   }
   return DEFAULT_CONFIG;
+}
+
+// Get dynamic appearance configuration
+export async function fetchAppearance(): Promise<AppearanceDocument> {
+  const ref = doc(db, "site_config", "appearance");
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    return snap.data() as AppearanceDocument;
+  }
+  return DEFAULT_APPEARANCE;
 }
 
 // List of current services

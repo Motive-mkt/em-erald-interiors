@@ -33,23 +33,32 @@ export function SplashGate() {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "config", "general"), (snap) => {
+    const unsub = onSnapshot(doc(db, "site_config", "appearance"), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data) {
-          setSlides([
-            { url: data.splashUrl1 || img1, title: 'Linen Bedroom' },
-            { url: data.splashUrl2 || img2, title: 'Sage Dining Room' },
-            { url: data.splashUrl3 || img3, title: 'Modern Home Office' },
-            { url: data.splashUrl4 || img4, title: 'Open Kitchen' },
-          ]);
+        if (data && data.splash_images && data.splash_images.length > 0) {
+          setSlides(data.splash_images.map((url: string, idx: number) => ({
+            url,
+            title: `Slide Asset ${idx + 1}`
+          })));
+        } else {
+          setSlides(DEFAULT_SLIDES);
         }
+      } else {
+        setSlides(DEFAULT_SLIDES);
       }
     });
     return () => unsub();
   }, []);
 
   useEffect(() => {
+    if (index >= slides.length) {
+      setIndex(0);
+    }
+  }, [slides.length, index]);
+
+  useEffect(() => {
+    if (slides.length === 0) return;
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % slides.length);
     }, 4500);

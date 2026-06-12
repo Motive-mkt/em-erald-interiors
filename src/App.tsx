@@ -22,7 +22,7 @@ import {
   DEFAULT_SERVICES,
   DEFAULT_GALLERY
 } from './lib/firebase';
-import { onSnapshot, doc, collection, deleteDoc, updateDoc } from 'firebase/firestore';
+import { onSnapshot, doc, collection, deleteDoc, updateDoc, getDocs } from 'firebase/firestore';
 
 function AppRoutes() {
   const navigate = useNavigate();
@@ -34,73 +34,79 @@ function AppRoutes() {
   const [gallery, setGallery] = useState<GalleryDocument[]>([]);
   const [, setLoading] = useState(true);
 
-  // Synchronize Firestore Elements instantly using Live Document Snapshots
+  // 1. Synchronize Firestore Configuration and Services instantly using Live Document Snapshots
   useEffect(() => {
-    // 1. Listen config
-    const unsubConfig = onSnapshot(doc(db, "config", "general"), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as SiteConfigDocument;
-        setConfig(data);
-        
-        // One-time check to clear any pre-loaded legacy logo from the database
-        if (localStorage.getItem('emerald_logo_cleared_v2') !== 'true') {
-          if (data.logoUrl) {
-            updateDoc(doc(db, "config", "general"), { logoUrl: "" })
-              .then(() => {
-                console.log("One-time cleanup: Cleared remote legacy logo URL so the owner can configure it themselves.");
-                localStorage.setItem('emerald_logo_cleared_v2', 'true');
-              })
-              .catch((err) => {
-                console.error("Failed to clear remote legacy logo:", err);
-              });
-          } else {
-            localStorage.setItem('emerald_logo_cleared_v2', 'true');
-          }
+    // Listen config
+    const unsubConfig = onSnapshot(
+      doc(db, "config", "general"), 
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as SiteConfigDocument;
+          setConfig(data);
+        } else {
+          setConfig(DEFAULT_CONFIG);
         }
-      } else {
-        setConfig(DEFAULT_CONFIG);
+      },
+      (error) => {
+        console.error("Config live sync error:", error);
       }
-    });
+    );
 
-    // 2. Listen services
-    const unsubServices = onSnapshot(collection(db, "services"), (snap) => {
-      if (!snap.empty) {
-        const list: ServiceDocument[] = [];
-        snap.forEach((d) => {
-          list.push(d.data() as ServiceDocument);
-        });
-        setServices(list.sort((a,b) => (a.order || 0) - (b.order || 0)));
-      } else {
-        setServices(DEFAULT_SERVICES);
+    // Listen services
+    const unsubServices = onSnapshot(
+      collection(db, "services"), 
+      (snap) => {
+        if (!snap.empty) {
+          const list: ServiceDocument[] = [];
+          snap.forEach((d) => {
+            list.push(d.data() as ServiceDocument);
+          });
+          setServices(list.sort((a, b) => (a.order || 0) - (b.order || 0)));
+        } else {
+          setServices(DEFAULT_SERVICES);
+        }
+      },
+      (error) => {
+        console.error("Services live sync error:", error);
       }
-    });
-
-    // 3. Listen gallery items
-    const unsubGallery = onSnapshot(collection(db, "gallery"), (snap) => {
-      if (!snap.empty) {
-        const list: GalleryDocument[] = [];
-        snap.forEach((d) => {
-          const item = d.data() as GalleryDocument;
-          const isSeededId = ["img-1", "img-2", "img-3", "img-4", "img-5"].includes(d.id || item.id);
-          const isSeededUrl = ["serene_bedroom", "sage_dining_room", "modern_home_office", "reading_nook", "kitchen_styling"].includes(item.url);
-          if (isSeededId || isSeededUrl) {
-            deleteDoc(doc(db, "gallery", d.id)).catch((e) => console.error("Error cleaning seeded gallery item:", e));
-          } else {
-            list.push({ id: d.id, ...item });
-          }
-        });
-        setGallery(list);
-      } else {
-        setGallery(DEFAULT_GALLERY);
-      }
-      setLoading(false);
-    });
+    );
 
     return () => {
       unsubConfig();
       unsubServices();
-      unsubGallery();
     };
+  }, []);
+
+  // 2. Fetch gallery items once per page load as requested
+  useEffect(() => {
+    const fetchGallery = async () => {
+      try {
+        const snap = await getDocs(collection(db, "gallery"));
+        if (!snap.empty) {
+          const list: GalleryDocument[] = [];
+          snap.forEach((d) => {
+            const item = d.data() as GalleryDocument;
+            const isSeededId = ["img-1", "img-2", "img-3", "img-4", "img-5"].includes(d.id || item.id);
+            const isSeededUrl = ["serene_bedroom", "sage_dining_room", "modern_home_office", "reading_nook", "kitchen_styling"].includes(item.url);
+            
+            // Programmatically filter out legacy seed items silently in client memory, avoiding failed deleteDoc calls for guests.
+            if (!isSeededId && !isSeededUrl) {
+              list.push({ id: d.id, ...item });
+            }
+          });
+          setGallery(list);
+        } else {
+          setGallery(DEFAULT_GALLERY);
+        }
+      } catch (err) {
+        console.error("Error fetching gallery items:", err);
+        setGallery(DEFAULT_GALLERY);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGallery();
   }, []);
 
   return (

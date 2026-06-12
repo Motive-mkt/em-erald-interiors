@@ -132,5 +132,16 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    // 6. Site Appearance Collection
+    match /site_config/{configId} {
+      allow read: if true;
+      allow create, update: if isApprovedUser() && (
+        configId == "appearance" &&
+        (request.resource.data.get('logo_url', null) == null || (request.resource.data.logo_url is string && request.resource.data.logo_url.size() <= 3145728)) &&
+        (request.resource.data.get('logo_text', null) == null || (request.resource.data.logo_text is string && request.resource.data.logo_text.size() <= 256)) &&
+        (request.resource.data.get('splash_images', null) == null || (request.resource.data.splash_images is list && request.resource.data.splash_images.size() <= 10))
+      );
+      allow delete: if isOwner();
+    }
   }
 }
