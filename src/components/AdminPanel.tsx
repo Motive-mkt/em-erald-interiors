@@ -244,11 +244,20 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
     // 6. Appearance Listener
     const unsubAppearance = onSnapshot(doc(db, 'site_config', 'appearance'), (snap) => {
       if (snap.exists()) {
-        const aData = snap.data() as AppearanceDocument;
+        const rawData = snap.data();
+        const aData: AppearanceDocument = {
+          logo_url: rawData.logo_url || '',
+          logo_text: rawData.logo_text || 'Em-erald',
+          splash_images: rawData.splash_images || []
+        };
         setAppearance(aData);
         setAppearanceForm(prev => {
           if (!prev) return aData;
-          return prev;
+          return {
+            logo_url: prev.logo_url !== undefined ? prev.logo_url : aData.logo_url,
+            logo_text: prev.logo_text !== undefined ? prev.logo_text : aData.logo_text,
+            splash_images: prev.splash_images || aData.splash_images || []
+          };
         });
       } else {
         setAppearance(DEFAULT_APPEARANCE);
@@ -492,9 +501,10 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const handleDeleteAppearanceSplash = (indexToDelete: number) => {
     setAppearanceForm(prev => {
       if (!prev) return null;
+      const splash = prev.splash_images || [];
       return {
         ...prev,
-        splash_images: prev.splash_images.filter((_, idx) => idx !== indexToDelete)
+        splash_images: splash.filter((_, idx) => idx !== indexToDelete)
       };
     });
   };
@@ -502,7 +512,8 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const handleMoveAppearanceSplash = (index: number, direction: 'up' | 'down') => {
     setAppearanceForm(prev => {
       if (!prev) return null;
-      const images = [...prev.splash_images];
+      const splashList = prev.splash_images || [];
+      const images = [...splashList];
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= images.length) return prev;
       
@@ -2310,7 +2321,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                             </div>
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {appearanceForm.splash_images.map((img, idx) => (
+                              {(appearanceForm.splash_images || []).map((img, idx) => (
                                 <div key={idx} className="bg-cream/25 p-3 rounded-2xl border border-emerald/5 flex flex-col justify-between gap-3 shadow-sm relative group">
                                   <div className="aspect-video w-full rounded-lg overflow-hidden bg-emerald/5 relative">
                                     <img src={img} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -2332,7 +2343,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={idx === appearanceForm.splash_images.length - 1}
+                                        disabled={idx === (appearanceForm.splash_images || []).length - 1}
                                         onClick={() => handleMoveAppearanceSplash(idx, 'down')}
                                         className="w-8 h-8 rounded-lg bg-white/60 hover:bg-white text-emerald flex items-center justify-center cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed border border-emerald/5"
                                         title="Move index right"
