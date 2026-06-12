@@ -88,8 +88,8 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
   const [appearance, setAppearance] = useState<AppearanceDocument | null>(null);
 
   // Form Management states
-  const [configForm, setConfigForm] = useState<SiteConfigDocument | null>(null);
-  const [appearanceForm, setAppearanceForm] = useState<AppearanceDocument | null>(null);
+  const [configForm, setConfigForm] = useState<SiteConfigDocument>(DEFAULT_CONFIG);
+  const [appearanceForm, setAppearanceForm] = useState<AppearanceDocument>(DEFAULT_APPEARANCE);
   const [newService, setNewService] = useState({ title: '', desc: '', icon: 'Sparkles', order: 1 });
   const [newGalleryItem, setNewGalleryItem] = useState({ url: '', tag: 'RESIDENTIAL', title: '', span: 'md:col-span-1 md:row-span-1' });
 
@@ -232,13 +232,15 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
         const cData = snap.data() as SiteConfigDocument;
         setConfig(cData);
         setConfigForm(prev => {
-          if (!prev) return cData;
+          if (config === null) return cData;
           return prev;
         });
       } else {
         setConfig(DEFAULT_CONFIG);
         setConfigForm(prev => prev || DEFAULT_CONFIG);
       }
+    }, (error) => {
+      console.error("Config onSnapshot error:", error);
     });
 
     // 6. Appearance Listener
@@ -252,7 +254,7 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
         };
         setAppearance(aData);
         setAppearanceForm(prev => {
-          if (!prev) return aData;
+          if (appearance === null) return aData;
           return {
             logo_url: prev.logo_url !== undefined ? prev.logo_url : aData.logo_url,
             logo_text: prev.logo_text !== undefined ? prev.logo_text : aData.logo_text,
@@ -263,6 +265,8 @@ export function AdminPanel({ isOpen, onClose, onUpdateConfig, onUpdateServices, 
         setAppearance(DEFAULT_APPEARANCE);
         setAppearanceForm(prev => prev || DEFAULT_APPEARANCE);
       }
+    }, (error) => {
+      console.error("Appearance onSnapshot error:", error);
     });
 
     return () => {
