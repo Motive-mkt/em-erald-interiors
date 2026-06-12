@@ -4,32 +4,14 @@ import { ChevronDown } from 'lucide-react';
 import { Logo } from './Logo';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import img1 from '../assets/images/serene_bedroom_1779090868311.png';
-import img2 from '../assets/images/sage_dining_room_1779090886447.png';
-import img3 from '../assets/images/modern_home_office_1779090902647.png';
-import img4 from '../assets/images/kitchen_styling_1779090940250.png';
 
-const DEFAULT_SLIDES = [
-  {
-    url: img1,
-    title: 'Linen Bedroom',
-  },
-  {
-    url: img2,
-    title: 'Sage Dining Room',
-  },
-  {
-    url: img3,
-    title: 'Modern Home Office',
-  },
-  {
-    url: img4,
-    title: 'Open Kitchen',
-  },
-];
+interface Slide {
+  url: string;
+  title: string;
+}
 
 export function SplashGate() {
-  const [slides, setSlides] = useState(DEFAULT_SLIDES);
+  const [slides, setSlides] = useState<Slide[]>([]);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -42,10 +24,10 @@ export function SplashGate() {
             title: `Slide Asset ${idx + 1}`
           })));
         } else {
-          setSlides(DEFAULT_SLIDES);
+          setSlides([]);
         }
       } else {
-        setSlides(DEFAULT_SLIDES);
+        setSlides([]);
       }
     });
     return () => unsub();
@@ -89,24 +71,42 @@ export function SplashGate() {
           transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
           className="relative w-full h-full overflow-hidden rounded-[2.5rem] md:rounded-[4rem] shadow-2xl bg-white/50"
         >
-          <AnimatePresence>
-            <motion.div
-              key={index}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.2, ease: "easeInOut" }}
-              className="absolute inset-0 w-full h-full"
-            >
-              <img
-                src={slides[index]?.url || img1}
-                alt=""
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-                loading="eager"
-              />
-            </motion.div>
-          </AnimatePresence>
+          {slides.length > 0 ? (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={index}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2, ease: "easeInOut" }}
+                className="absolute inset-0 w-full h-full"
+              >
+                <img
+                  src={slides[index]?.url}
+                  alt={slides[index]?.title || ''}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                />
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gradient-to-tr from-emerald/5 via-cream/80 to-emerald/10 p-8 text-center">
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1 }}
+                className="max-w-md space-y-6"
+              >
+                <span className="text-[10px] tracking-[0.35em] uppercase font-bold text-emerald/60 block">Welcome to</span>
+                <h3 className="text-3xl md:text-5xl font-serif font-light text-emerald tracking-wide">Emerald Studio</h3>
+                <div className="h-[1px] w-12 bg-emerald/20 mx-auto" />
+                <p className="text-xs text-emerald/60 leading-relaxed max-w-sm mx-auto font-sans font-light">
+                  No showcase images have been uploaded yet. Open the <strong className="font-semibold text-emerald">Admin Panel &gt; Appearance Settings</strong> to curate and publish your studio designs instantly.
+                </p>
+              </motion.div>
+            </div>
+          )}
           
           {/* Subtle Frame Overlays */}
           <div className="absolute inset-0 pointer-events-none border-[1px] border-white/20 rounded-[2.5rem] md:rounded-[4rem]" />
